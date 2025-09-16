@@ -37,7 +37,7 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = "com.example.AppKt"
+    mainClass = "com.customDB.MainKt"
 }
 
 tasks.named<Test>("test") {
