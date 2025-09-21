@@ -12,6 +12,6 @@ data class TableSchema(
         val name: String,
         val type: FieldType,
         val nullable: Boolean = false,
-        val defaultValue: Any? = null
+        val defaultValue: FieldType? = null
     )
 }

@@ -8,8 +8,8 @@ fun interface Predicate {
 /** Небольшой DSL для предикатов. */
 object Q {
     fun any(): Predicate = Predicate { true }
-    fun eq(field: String, value: Any?): Predicate = Predicate { it.values[field] == value }
-    fun ne(field: String, value: Any?): Predicate = Predicate { it.values[field] != value }
+    fun eq(field: String, value: FieldType?): Predicate = Predicate { it.values[field] == value }
+    fun ne(field: String, value: FieldType?): Predicate = Predicate { it.values[field] != value }
     fun gt(field: String, value: Number): Predicate = Predicate {
         (it.values[field] as? Number)?.toDouble()?.let { v -> v > value.toDouble() } == true
     }

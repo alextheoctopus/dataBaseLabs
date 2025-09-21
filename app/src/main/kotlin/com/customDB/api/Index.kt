@@ -8,14 +8,14 @@ interface Index : AutoCloseable {
     val unique: Boolean
 
     /** Зарегистрировать актуальную позицию записи (смещение/ключ реализации). */
-    fun upsert(rowId: RowId, values: Map<String, Any?>, physicalRef: Long)
+    fun upsert(rowId: RowId, values: Map<String, FieldType?>, physicalRef: Long)
 
     /** Удалить запись из индекса. */
     fun remove(rowId: RowId)
 
     /** Поисковые операции по индексу. Возвращают RowId (или физические ссылки). */
-    fun findExact(lookup: Map<String, Any?>): Sequence<RowId>
-    fun range(field: String, from: Any?, to: Any?, inclusive: Boolean = true): Sequence<RowId>
+    fun findExact(lookup: Map<String, FieldType?>): Sequence<RowId>
+    fun range(field: String, from: FieldType?, to: FieldType?, inclusive: Boolean = true): Sequence<RowId>
 
     override fun close()
 }
