@@ -3,7 +3,7 @@ package com.customDB.api
 /** Кодек сериализации одной записи (payload), чтобы хранить её в файле. */
 interface RecordCodec {
     /** Кодирует только values (без id). */
-    fun encode(values: Map<String, Any?>): ByteArray
+    fun encode(values: Map<String, FieldType?>): ByteArray
     /** Декодирует values (без id). */
     fun decode(bytes: ByteArray): Map<String, Any?>
 }

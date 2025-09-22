@@ -12,7 +12,7 @@ interface Table{
     fun get(id: RowId): Row?
 
     /** Полная замена значений (кроме id). Возвращает true, если обновлено. */
-    fun update(id: RowId, newValues: Map<String, Any?>): Boolean
+    fun update(id: RowId, newValues: Map<String, FieldType?>): Boolean
 
     /** Вставить или обновить (по наличию id). Возвращает id. */
     fun upsert(row: Row): RowId
