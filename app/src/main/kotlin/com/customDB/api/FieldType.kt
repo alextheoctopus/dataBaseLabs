@@ -1,8 +1,12 @@
 package com.customDB.api
 
+import kotlinx.serialization.Serializable
+
 
 /** Базовые типы поля в таблице. Можно расширять при необходимости. */
+@Serializable
 sealed class FieldType {
+    @Serializable
     data class STRING(val v: String) : FieldType()
     data class LONG(val v: Long) : FieldType()
     data class DOUBLE(val v: Double) : FieldType()

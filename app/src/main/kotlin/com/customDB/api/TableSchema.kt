@@ -1,6 +1,9 @@
 package com.customDB.api
 
+import kotlinx.serialization.Serializable
+
 /** Описание схемы таблицы (кроме PK 'id', он фиксированный Long). */
+@Serializable
 data class TableSchema(
     val name: String,
     /** Порядок важен (LinkedHashMap-поведение): имя_поля -> тип. */
@@ -8,6 +11,8 @@ data class TableSchema(
     /** Разрешать ли отсутствующие поля с default-значениями. */
     val allowDefaults: Boolean = false,
 ) {
+
+    @Serializable
     data class Column(
         val name: String,
         val type: FieldType,
