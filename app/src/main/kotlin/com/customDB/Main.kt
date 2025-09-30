@@ -28,7 +28,15 @@ fun main() {
                     mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
             ),
         )
+    println("idRow: $idRow")
 
-    val a = localTable.get(RowId(3))
+
+    val a = localTable.get(RowId(12))
     println("a: $a")
+
+    val del = localTable.delete(RowId(12))
+    println("del: $del")
+
+    val a2 = localTable.get(RowId(12))
+    println("a: $a2")
 }

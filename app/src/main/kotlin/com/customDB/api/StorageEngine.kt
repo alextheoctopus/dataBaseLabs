@@ -9,8 +9,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
-class LocalStorageEngine : AutoCloseable {
+class LocalStorageEngine @JvmOverloads constructor(
     val basePath: File = File("src", "LocalDB")
+) : AutoCloseable {
 
     private fun tableDataFile(tableName: String): File = File(basePath, "$tableName.tbl")
 

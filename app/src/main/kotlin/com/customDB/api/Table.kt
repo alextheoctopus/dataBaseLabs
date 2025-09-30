@@ -64,10 +64,17 @@ class LocalTable(
 
     override fun get(id: RowId): Row? {
         val targetId = (id as FieldType.LONG).v
-        val records = record.readAll()
-        val rec = records.lastOrNull { it.id == targetId && !it.tombstone } ?: return null
-        return json.decodeFromString(Row.serializer(), rec.payload)
+
+        var lastPayload: String? = null
+        for (rec in record.readAll()) {
+            if (rec.id == targetId) {
+                lastPayload = if (!rec.tombstone) rec.payload else null
+            }
+        }
+
+        return lastPayload?.let { json.decodeFromString(Row.serializer(), it) }
     }
+
 
 
     override fun update(
@@ -77,7 +84,19 @@ class LocalTable(
 
     override fun upsert(row: Row): RowId = TODO()
 
-    override fun delete(id: RowId): Boolean = TODO()
+    override fun delete(id: RowId): Boolean {
+        val targetId = (id as FieldType.LONG).v
+
+        val hasAlive = record.readAll().any { it.id == targetId && !it.tombstone }
+        if (!hasAlive) return false
+
+        record.append(
+            tombstone = true,
+            id = id,
+            payload = ""
+        )
+        return true
+    }
 
     override fun scan(
         predicate: Predicate,
