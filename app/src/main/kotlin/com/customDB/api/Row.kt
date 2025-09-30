@@ -1,9 +1,9 @@
 package com.customDB.api
 
-typealias RowId = Long
+typealias RowId = FieldType.LONG
 
 /** Логическая строка таблицы. Значения должны соответствовать схеме. */
 data class Row(
-    val id: RowId = 0L,                      // 0L => автогенерация при insert
+    //val id: RowId = 0L,                          // Предлагаю генерировать самим
     val values: Map<String, FieldType?>            // только поля из TableSchema.fields
 )

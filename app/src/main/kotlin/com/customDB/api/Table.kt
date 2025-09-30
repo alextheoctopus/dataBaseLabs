@@ -1,12 +1,24 @@
 package com.customDB.api
 
-/** Контракт таблицы. Реализация может быть append-only с tombstone и compact(). */
-interface Table{
+import kotlinx.serialization.json.Json
+
+/** Контракт таблицы. Реализация может быть append-only с tombstone и compact().
+ * TODO: наподумать. Возможно интерфейс для нашей задачи излишен. Убрать и оставить только класс*/
+interface Table {
     val name: String
     val schema: TableSchema
+    val record: RecordFormat
 
-    /** Создать запись. Если id == 0L — сгенерировать. Возвращает фактический id. */
-    fun insert(row: Row): RowId
+    /** Создать запись. Если id == 0L — сгенерировать необходимый уникальный ID. Возвращает фактический id. */
+    fun insert(values: Row): RowId {
+        val rowId=LocalStorageEngine().generateRowId(name)
+        record.append(
+            false,
+            rowId,
+            Json.encodeToString(values)
+        )
+        return rowId//На этом остановилась 30.09.2025
+    }
 
     /** Прочитать по первичному ключу. */
     fun get(id: RowId): Row?
@@ -35,4 +47,37 @@ interface Table{
     fun compact()
 
 //    override fun close()
+}
+
+class LocalTable(override val name: String, override val schema: TableSchema) : Table {
+    override val record: RecordFormat = RecordFormat()
+
+
+    override fun get(id: RowId): Row? {
+        TODO("Not yet implemented")
+    }
+
+    override fun update(id: RowId, newValues: Map<String, FieldType?>): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun upsert(row: Row): RowId {
+        TODO("Not yet implemented")
+    }
+
+    override fun delete(id: RowId): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun scan(predicate: Predicate, sort: Sort, limit: Int, offset: Int): Cursor<Row> {
+        TODO("Not yet implemented")
+    }
+
+    override fun countApprox(): Long {
+        TODO("Not yet implemented")
+    }
+
+    override fun compact() {
+        TODO("Not yet implemented")
+    }
 }

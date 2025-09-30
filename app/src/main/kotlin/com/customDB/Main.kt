@@ -1,18 +1,24 @@
 package com.customDB
 
-import com.customDB.api.FieldType.STRING
-import com.customDB.api.LocalStorageEngine
-import com.customDB.api.TableSchema
-
+import com.customDB.api.*
+import com.customDB.api.FieldType.*
 
 
 fun main() {
-    val t_table = TableSchema(
+    val schemaTable = TableSchema(
         name = "TestTable",
         fields = listOf(
-            TableSchema.Column("id", STRING(""), false),
-            TableSchema.Column("test_field", STRING(""), true),
+            TableSchema.Column("lastName", STRING(""), false),
+            TableSchema.Column("age", LONG(0), true),
+        )
+    );
+    val engine = LocalStorageEngine();
+    val localTable: Table = engine.createTable(schemaTable)
+    val idRow = localTable.insert(
+        Row(
+            values =
+                mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23))
         )
     )
-    LocalStorageEngine().createTable(t_table)
+    println(idRow)
 }
