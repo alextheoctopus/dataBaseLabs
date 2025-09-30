@@ -8,22 +8,25 @@ import java.io.RandomAccessFile
 class RecordFormat(private val file: File) {
     private val json = Json { encodeDefaults = true }
 
-    fun makeLine(
-        tombstone: Boolean,
-        id: RowId,
-        payload: String,
-    ): String =
-        json.encodeToString(
-            RecordLine.serializer(),
-            RecordLine(tombstone = tombstone, id = id, payload = payload),
-        )
+    @Serializable
+    data class RecordLine(
+        val tombstone: Boolean = false,
+        val id: Long,
+        val payload: String,
+    )
 
+    /** Записать запись в файл */
     fun append(
         tombstone: Boolean,
         id: RowId,
         payload: String,
     ): String {
-        val line = makeLine(tombstone, id, payload) + "\n"
+        val longId = (id as FieldType.LONG).v
+        val line = json.encodeToString(
+            RecordLine.serializer(),
+            RecordLine(tombstone, longId, payload),
+        ) + "\n"
+
         file.parentFile?.mkdirs()
         RandomAccessFile(file, "rw").use { raf ->
             raf.seek(raf.length())
@@ -32,10 +35,11 @@ class RecordFormat(private val file: File) {
         return line.trimEnd('\n')
     }
 
-    @Serializable
-    private data class RecordLine(
-        val tombstone: Boolean = false,
-        val id: RowId,
-        val payload: String,
-    )
+    /** Прочитать все записи */
+    fun readAll(): List<RecordLine> {
+        if (!file.exists()) return emptyList()
+        return file.readLines()
+            .filter { it.isNotBlank() }
+            .map { json.decodeFromString(RecordLine.serializer(), it) }
+    }
 }

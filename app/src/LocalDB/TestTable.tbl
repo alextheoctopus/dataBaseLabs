@@ -1,4 +1,3 @@
-{"tombstone":false,"id":{"v":1},"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
-{"tombstone":false,"id":{"v":2},"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
-{"tombstone":false,"id":{"v":3},"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
-{"tombstone":false,"id":{"v":4},"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
+{"tombstone":false,"id":1,"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
+{"tombstone":false,"id":2,"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}
+{"tombstone":false,"id":3,"payload":"{\"values\":{\"lastName\":{\"type\":\"com.customDB.api.FieldType.STRING\",\"v\":\"Beznosova\"},\"age\":{\"type\":\"com.customDB.api.FieldType.LONG\",\"v\":23}}}"}

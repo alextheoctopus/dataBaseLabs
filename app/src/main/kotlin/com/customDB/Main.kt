@@ -28,4 +28,7 @@ fun main() {
                     mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
             ),
         )
+
+    val a = localTable.get(RowId(3))
+    println("a: $a")
 }

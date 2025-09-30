@@ -62,7 +62,13 @@ class LocalTable(
         )
     }
 
-    override fun get(id: RowId): Row? = TODO()
+    override fun get(id: RowId): Row? {
+        val targetId = (id as FieldType.LONG).v
+        val records = record.readAll()
+        val rec = records.lastOrNull { it.id == targetId && !it.tombstone } ?: return null
+        return json.decodeFromString(Row.serializer(), rec.payload)
+    }
+
 
     override fun update(
         id: RowId,
