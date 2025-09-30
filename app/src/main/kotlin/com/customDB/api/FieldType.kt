@@ -7,6 +7,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed class FieldType {
     @Serializable
+    data class PK(val start: Long) : FieldType()
+    @Serializable
     data class STRING(val v: String) : FieldType()
     @Serializable
     data class LONG(val v: Long) : FieldType()

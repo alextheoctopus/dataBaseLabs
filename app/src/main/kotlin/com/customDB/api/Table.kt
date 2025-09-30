@@ -9,15 +9,14 @@ interface Table {
     val schema: TableSchema
     val record: RecordFormat
 
-    /** Создать запись. Если id == 0L — сгенерировать необходимый уникальный ID. Возвращает фактический id. */
     fun insert(values: Row): RowId {
         val rowId=LocalStorageEngine().generateRowId(name)
         record.append(
-            false,
-            rowId,
-            Json.encodeToString(values)
+            id=rowId,
+            payload=Json.encodeToString(values),
+            tombstone = false,
         )
-        return rowId//На этом остановилась 30.09.2025
+        return rowId
     }
 
     /** Прочитать по первичному ключу. */
