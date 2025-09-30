@@ -1,32 +1,41 @@
 package com.customDB.api
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.io.RandomAccessFile
 
-/** Кодек сериализации одной записи (payload), чтобы хранить её в файле. */
-interface RecordCodec {
-    /** Кодирует только values (без id). */
-    fun encode(values: Map<String, FieldType?>): ByteArray
-    /** Декодирует values (без id). */
-    fun decode(bytes: ByteArray): Map<String, Any?>
-}
+class RecordFormat(private val file: File) {
+    private val json = Json { encodeDefaults = true }
 
-/** Формат файла: как хранить tombstone, id, длину и payload. */
-@Serializable
-class RecordFormat() {
-    /** Записать запись (append) и вернуть физическое смещение начала записи. */
-    fun append(tombstone: Boolean, id: FieldType.LONG, payload: String): Long{
-        return 0
+    fun makeLine(
+        tombstone: Boolean,
+        id: RowId,
+        payload: String,
+    ): String =
+        json.encodeToString(
+            RecordLine.serializer(),
+            RecordLine(tombstone = tombstone, id = id, payload = payload),
+        )
+
+    fun append(
+        tombstone: Boolean,
+        id: RowId,
+        payload: String,
+    ): String {
+        val line = makeLine(tombstone, id, payload) + "\n"
+        file.parentFile?.mkdirs()
+        RandomAccessFile(file, "rw").use { raf ->
+            raf.seek(raf.length())
+            raf.write(line.toByteArray(Charsets.UTF_8))
+        }
+        return line.trimEnd('\n')
     }
-    /** Прочитать запись с указанного смещения. */
-//    fun readAt(offset: Long): Record
-//
-//    /** Пометить запись как tombstone по смещению. */
-//    fun markDeleted(offset: Long)
+
     @Serializable
-    data class RecordFile(
-        val tombstone: Boolean,
+    private data class RecordLine(
+        val tombstone: Boolean = false,
         val id: RowId,
-        val payload: ByteArray
+        val payload: String,
     )
 }
-

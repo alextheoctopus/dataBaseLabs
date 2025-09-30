@@ -13,7 +13,7 @@ plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     application
     kotlin("plugin.serialization") version "2.2.0"
-
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
 }
 
 repositories {
@@ -50,5 +50,3 @@ tasks.named<Test>("test") {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
 }
-
-

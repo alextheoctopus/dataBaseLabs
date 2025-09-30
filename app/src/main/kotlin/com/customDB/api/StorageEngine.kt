@@ -12,11 +12,9 @@ import java.io.File
 class LocalStorageEngine : AutoCloseable {
     val basePath: File = File("src", "LocalDB")
 
-    private fun tableDataFile(tableName: String): File =
-        File(basePath, "$tableName.tbl")
+    private fun tableDataFile(tableName: String): File = File(basePath, "$tableName.tbl")
 
-    private fun tableMetaFile(tableName: String): File =
-        File(basePath, "$tableName.meta")
+    private fun tableMetaFile(tableName: String): File = File(basePath, "$tableName.meta")
 
     fun createTable(table: TableSchema): Table {
         val pathTableData = tableDataFile(table.name)
@@ -45,22 +43,30 @@ class LocalStorageEngine : AutoCloseable {
         }
     }
 
-    private fun updateMetaField(tableName: String, field: String, value: String) {
+    private fun updateMetaField(
+        tableName: String,
+        field: String,
+        value: String,
+    ) {
         val metaFile = tableMetaFile(tableName)
 
         val text = metaFile.readText()
         val json = Json.parseToJsonElement(text).jsonObject
 
-        val updated = JsonObject(
-            json.toMutableMap().apply {
-                this[field] = JsonPrimitive(value)
-            }
-        )
+        val updated =
+            JsonObject(
+                json.toMutableMap().apply {
+                    this[field] = JsonPrimitive(value)
+                },
+            )
 
         metaFile.writeText(Json.encodeToString(JsonObject.serializer(), updated))
     }
 
-    private fun getMetaField(tableName: String, field: String): String? {
+    private fun getMetaField(
+        tableName: String,
+        field: String,
+    ): String? {
         val metaFile = tableMetaFile(tableName)
 
         val text = metaFile.readText()
@@ -72,15 +78,15 @@ class LocalStorageEngine : AutoCloseable {
     override fun close() {
     }
 
-    private fun openTable(tableName: String): Table {//Была попытка использовать Either, неудачная...
+    private fun openTable(tableName: String): Table { // Была попытка использовать Either, неудачная...
         val meta = tableMetaFile(tableName)
-        val structureData: String = meta.readText();
-        //TODO: перенести в метод декодирования
+        val structureData: String = meta.readText()
+        // TODO: перенести в метод декодирования
         val tableSchemaFromFile = Json.decodeFromString(TableSchema.serializer(), structureData)
-        return LocalTable(tableSchemaFromFile.name, tableSchemaFromFile)
+        return LocalTable(tableSchemaFromFile.name, tableSchemaFromFile, basePath)
     }
 
-    fun generateRowId(tableName:String): FieldType.LONG {
+    fun generateRowId(tableName: String): FieldType.LONG {
         val id = getMetaField(tableName, "id")?.toLongOrNull() ?: 0L
         return FieldType.LONG(id)
     }
