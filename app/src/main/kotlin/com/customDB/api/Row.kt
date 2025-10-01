@@ -1,9 +1,12 @@
 package com.customDB.api
 
-typealias RowId = Long
+import kotlinx.serialization.Serializable
+
+typealias RowId = FieldType.LONG
 
 /** Логическая строка таблицы. Значения должны соответствовать схеме. */
+@Serializable
 data class Row(
-    val id: RowId = 0L,                      // 0L => автогенерация при insert
-    val values: Map<String, FieldType?>            // только поля из TableSchema.fields
+    // val id: RowId = 0L,                          // Предлагаю генерировать самим
+    val values: Map<String, FieldType?>, // только поля из TableSchema.fields
 )

@@ -1,26 +1,45 @@
 package com.customDB.api
 
-/** Кодек сериализации одной записи (payload), чтобы хранить её в файле. */
-interface RecordCodec {
-    /** Кодирует только values (без id). */
-    fun encode(values: Map<String, FieldType?>): ByteArray
-    /** Декодирует values (без id). */
-    fun decode(bytes: ByteArray): Map<String, Any?>
-}
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.io.RandomAccessFile
 
-/** Формат файла: как хранить tombstone, id, длину и payload. */
-interface RecordFormat {
-    /** Записать запись (append) и вернуть физическое смещение начала записи. */
-    fun append(tombstone: Boolean, id: RowId, payload: ByteArray): Long
-    /** Прочитать запись с указанного смещения. */
-    fun readAt(offset: Long): Record
+class RecordFormat(private val file: File) {
+    private val json = Json { encodeDefaults = true }
 
-    /** Пометить запись как tombstone по смещению. */
-    fun markDeleted(offset: Long)
-
-    data class Record(
-        val tombstone: Boolean,
-        val id: RowId,
-        val payload: ByteArray
+    @Serializable
+    data class RecordLine(
+        val tombstone: Boolean = false,
+        val id: Long,
+        val payload: String,
     )
+
+    /** Записать запись в файл */
+    fun append(
+        tombstone: Boolean,
+        id: RowId,
+        payload: String,
+    ): String {
+        val longId = (id as FieldType.LONG).v
+        val line = json.encodeToString(
+            RecordLine.serializer(),
+            RecordLine(tombstone, longId, payload),
+        ) + "\n"
+
+        file.parentFile?.mkdirs()
+        RandomAccessFile(file, "rw").use { raf ->
+            raf.seek(raf.length())
+            raf.write(line.toByteArray(Charsets.UTF_8))
+        }
+        return line.trimEnd('\n')
+    }
+
+    /** Прочитать все записи */
+    fun readAll(): List<RecordLine> {
+        if (!file.exists()) return emptyList()
+        return file.readLines()
+            .filter { it.isNotBlank() }
+            .map { json.decodeFromString(RecordLine.serializer(), it) }
+    }
 }
