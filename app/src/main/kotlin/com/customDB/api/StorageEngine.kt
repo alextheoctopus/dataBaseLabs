@@ -87,10 +87,6 @@ class LocalStorageEngine @JvmOverloads constructor(
         return LocalTable(tableSchemaFromFile.name, tableSchemaFromFile, basePath)
     }
 
-    fun generateRowId(tableName: String): FieldType.LONG {
-        val id = getMetaField(tableName, "id")?.toLongOrNull() ?: 0L
-        return FieldType.LONG(id)
-    }
 
 //
 //    /** Удалить таблицу (все связанные файлы). Возвращает true, если что-то удалено. */

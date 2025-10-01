@@ -12,7 +12,7 @@ interface Table {
     /** Вставить строку. Возвращаем СТРОКУ, записанную в .tbl */
     fun insert(values: Row): String
 
-    fun get(id: RowId): Row?
+    fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>?
 
     fun update(
         id: RowId,
@@ -21,7 +21,7 @@ interface Table {
 
     fun upsert(row: Row): RowId
 
-    fun delete(id: RowId): Boolean
+    fun delete(fields: Map<String, FieldType>): Boolean
 
     fun scan(
         predicate: Predicate = Q.any(),
@@ -41,8 +41,12 @@ class LocalTable(
     baseDir: File,
 ) : Table {
     private val json = Json { encodeDefaults = true }
+
+
     private val dataFile = File(baseDir, "$name.tbl")
     override val record: RecordFormat = RecordFormat(dataFile)
+
+
 
     /** Простой генератор id: 1 + число непустых строк в .tbl */
     private fun nextRowId(): RowId {
@@ -61,20 +65,32 @@ class LocalTable(
             payload = payload,
         )
     }
+//Возвращает живые строки по заданным полям
+    override fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>? {
+        if (fields.isEmpty()) return null
+    val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
+        .map { rec ->
+            RecordFormat.RecordLineLocal(
+                tombstone = rec.tombstone,
+                id = rec.id,
+                payload = json.decodeFromString(Row.serializer(), rec.payload)
+            )
+        }
+        val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
-    override fun get(id: RowId): Row? {
-        val targetId = (id as FieldType.LONG).v
+        for (rec in recordJson) {
+            // проверяем, что все поля совпадают и живые
+            val matches = fields.all { (key, value) ->
+                rec.payload.values[key] == value //&& !rec.tombstone
+            }
 
-        var lastPayload: String? = null
-        for (rec in record.readAll()) {
-            if (rec.id == targetId) {
-                lastPayload = if (!rec.tombstone) rec.payload else null
+            if (matches) {
+                foundData.add(rec)
             }
         }
 
-        return lastPayload?.let { json.decodeFromString(Row.serializer(), it) }
+        return if (foundData.isNotEmpty()) foundData else null
     }
-
 
 
     override fun update(
@@ -84,17 +100,34 @@ class LocalTable(
 
     override fun upsert(row: Row): RowId = TODO()
 
-    override fun delete(id: RowId): Boolean {
-        val targetId = (id as FieldType.LONG).v
+    override fun delete(fields: Map<String, FieldType>): Boolean {
+        // Найти строки по условию
+        val rowsToDelete = get(fields) ?: return false
 
-        val hasAlive = record.readAll().any { it.id == targetId && !it.tombstone }
-        if (!hasAlive) return false
+        val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
+            .map { rec ->
+                RecordFormat.RecordLineLocal(
+                    tombstone = rec.tombstone,
+                    id = rec.id,
+                    payload = json.decodeFromString(Row.serializer(), rec.payload)
+                )
+            }
 
-        record.append(
-            tombstone = true,
-            id = id,
-            payload = ""
+        // Пометить tombstone = true для нужных строк
+        val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.map { line ->
+            if (rowsToDelete.any { it.id == line.id }) {
+                line.copy(tombstone = true) // ✅ делаем копию с изменённым tombstone
+            } else {
+                line
+            }
+        }
+
+        dataFile.writeText(
+            updatedJson.joinToString("\n") { line ->
+                json.encodeToString(RecordFormat.RecordLineLocal.serializer(), line)
+            }
         )
+
         return true
     }
 
