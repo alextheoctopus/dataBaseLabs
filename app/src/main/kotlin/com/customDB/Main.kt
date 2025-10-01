@@ -21,29 +21,31 @@ fun main() {
     val localTable: Table = engine.getOrCreateTable(schemaTable)
     println("table ok")
 
-//    val idRow =
-//        localTable.insert(
-//            Row(
-//                values =
-//                    mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
-//            ),
-//
-//        )
-//    localTable.insert(
-//        Row(
-//            values =
-//                mapOf("lastName" to STRING("ABC"), "age" to LONG(23)),
-//        ),
-//
-//        )
-//    println("idRow: $idRow")
+    val idRow =
+        localTable.insert(
+            Row(
+                values =
+                    mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
+            ),
 
+        )
+    localTable.insert(
+        Row(
+            values =
+                mapOf("lastName" to STRING("ABC"), "age" to LONG(23)),
+
+            ),
+
+        )
+    println("idRow: $idRow")
 
     val a = localTable.get(mapOf("age" to LONG(23)))
-    println("a: $a")
+    println("before: $a")
 
-    val del = localTable.delete(mapOf("lastName" to STRING("ABC")))
+    val del = localTable.delete(mapOf("lastName" to STRING("Beznosova")))
     println("del: $del")
+    val b = localTable.get(mapOf("age" to LONG(23)))
+    println("after: $b")
 
 //    val a2 = localTable.get(RowId(1))
 //    println("a: $a2")

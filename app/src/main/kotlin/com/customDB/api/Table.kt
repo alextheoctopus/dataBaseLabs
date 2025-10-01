@@ -10,7 +10,7 @@ interface Table {
     val record: RecordFormat
 
     /** Вставить строку. Возвращаем СТРОКУ, записанную в .tbl */
-    fun insert(values: Row): String
+    fun insert(values: Row, id: FieldType.LONG?=null , tombstone: FieldType.BOOL?=null ): String
 
     fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>?
 
@@ -47,45 +47,56 @@ class LocalTable(
     override val record: RecordFormat = RecordFormat(dataFile)
 
 
-
     /** Простой генератор id: 1 + число непустых строк в .tbl */
-    private fun nextRowId(): RowId {
+    private fun nextRowId(): FieldType.LONG {
         if (!dataFile.exists()) return FieldType.LONG(1)
         val lines = dataFile.useLines { seq -> seq.count { it.isNotBlank() } }
         return FieldType.LONG(lines + 1L)
     }
 
+
     /** Вставить строку и вернуть СТРОКУ, которая записана в .tbl */
-    override fun insert(values: Row): String {
-        val rowId = nextRowId()
+    override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?): String {
+        // если id не передан → генерим новый
+        val rowId: Long = id?.v ?: nextRowId().v
+
+        // если tombstone не передан → считаем, что запись живая
+        val tombstoneFlag = tombstone?.v ?: false
+
         val payload = json.encodeToString(Row.serializer(), values)
+
         return record.append(
-            tombstone = false,
-            id = rowId,
-            payload = payload,
+            tombstone = tombstoneFlag,
+            id = FieldType.LONG(rowId),
+            payload = payload
         )
     }
-//Возвращает живые строки по заданным полям
+
+
+    //Возвращает живые строки по заданным полям
     override fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>? {
         if (fields.isEmpty()) return null
-    val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
-        .map { rec ->
-            RecordFormat.RecordLineLocal(
-                tombstone = rec.tombstone,
-                id = rec.id,
-                payload = json.decodeFromString(Row.serializer(), rec.payload)
-            )
-        }
+        val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
+            .map { rec ->
+                RecordFormat.RecordLineLocal(
+                    tombstone = rec.tombstone,
+                    id = rec.id,
+                    payload = json.decodeFromString(Row.serializer(), rec.payload)
+                )
+            }
         val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
         for (rec in recordJson) {
-            // проверяем, что все поля совпадают и живые
-            val matches = fields.all { (key, value) ->
-                rec.payload.values[key] == value //&& !rec.tombstone
-            }
+            if (!rec.tombstone) {//если запись мертвая, то пропустить
 
-            if (matches) {
-                foundData.add(rec)
+                // проверяем, что все поля совпадают и живые
+                val matches = fields.all { (key, value) ->
+                    rec.payload.values[key] == value
+                }
+
+                if (matches) {
+                    foundData.add(rec)
+                }
             }
         }
 
@@ -116,17 +127,29 @@ class LocalTable(
         // Пометить tombstone = true для нужных строк
         val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.map { line ->
             if (rowsToDelete.any { it.id == line.id }) {
-                line.copy(tombstone = true) // ✅ делаем копию с изменённым tombstone
+                RecordFormat.RecordLineLocal(
+                    tombstone = true,
+                    id = line.id,
+                    payload = line.payload
+                )
+
             } else {
-                line
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = line.id,
+                    payload = line.payload
+                )
             }
         }
+        dataFile.writeText("")
+        for (row in updatedJson) {
+            insert(
+                values = row.payload,
+                id = FieldType.LONG(row.id),
+                tombstone = FieldType.BOOL(row.tombstone)
+            )
+        }
 
-        dataFile.writeText(
-            updatedJson.joinToString("\n") { line ->
-                json.encodeToString(RecordFormat.RecordLineLocal.serializer(), line)
-            }
-        )
 
         return true
     }
