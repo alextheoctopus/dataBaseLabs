@@ -10,29 +10,27 @@ interface Table {
     val record: RecordFormat
 
     /** Вставить строку. Возвращаем СТРОКУ, записанную в .tbl */
-    fun insert(values: Row, id: FieldType.LONG?=null , tombstone: FieldType.BOOL?=null ): String
+    fun insert(values: Row, id: FieldType.LONG? = null, tombstone: FieldType.BOOL? = null): String
 
     fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>?
 
-    fun update(
+    fun upsert(
         id: RowId,
-        newValues: Map<String, FieldType?>,
+        newValues: Row,
     ): Boolean
-
-    fun upsert(row: Row): RowId
 
     fun delete(fields: Map<String, FieldType>): Boolean
 
-    fun scan(
-        predicate: Predicate = Q.any(),
-        sort: Sort = Sort(),
-        limit: Int = Int.MAX_VALUE,
-        offset: Int = 0,
-    ): Cursor<Row>
+//    fun scan(
+//        predicate: Predicate = Q.any(),
+//        sort: Sort = Sort(),
+//        limit: Int = Int.MAX_VALUE,
+//        offset: Int = 0,
+//    ): Cursor<Row>
+//
+//    fun countApprox(): Long
 
-    fun countApprox(): Long
-
-    fun compact()
+    fun compact(): Boolean
 }
 
 class LocalTable(
@@ -54,6 +52,29 @@ class LocalTable(
         return FieldType.LONG(lines + 1L)
     }
 
+    private fun getRecord(): List<RecordFormat.RecordLineLocal> {
+        var result: List<RecordFormat.RecordLineLocal> = record.readAll()
+            .map { rec ->
+                RecordFormat.RecordLineLocal(
+                    tombstone = rec.tombstone,
+                    id = rec.id,
+                    payload = json.decodeFromString(Row.serializer(), rec.payload)
+                )
+            }.filter { !it.tombstone }//только живые
+        return result;
+    }
+
+    /**Очищение от мертвых записей*/
+    override fun compact(): Boolean {
+        var result: Boolean = false;
+        val recordJson = getRecord();
+        val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.filter { !it.tombstone }
+        dataFile.writeText("")
+        for (row in updatedJson) {
+            insert(row.payload, FieldType.LONG(row.id), FieldType.BOOL(row.tombstone))
+        }
+        return result
+    }
 
     /** Вставить строку и вернуть СТРОКУ, которая записана в .tbl */
     override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?): String {
@@ -68,22 +89,17 @@ class LocalTable(
         return record.append(
             tombstone = tombstoneFlag,
             id = FieldType.LONG(rowId),
-            payload = payload
+            payload = payload//должен всегда содержать все столбцы? сделать проверку
         )
     }
 
 
     //Возвращает живые строки по заданным полям
     override fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>? {
-        if (fields.isEmpty()) return null
-        val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
-            .map { rec ->
-                RecordFormat.RecordLineLocal(
-                    tombstone = rec.tombstone,
-                    id = rec.id,
-                    payload = json.decodeFromString(Row.serializer(), rec.payload)
-                )
-            }
+
+        val recordJson = getRecord()
+
+        if (fields.isEmpty()) return recordJson
         val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
         for (rec in recordJson) {
@@ -104,25 +120,51 @@ class LocalTable(
     }
 
 
-    override fun update(
+    override fun upsert(
         id: RowId,
-        newValues: Map<String, FieldType?>,
-    ): Boolean = TODO()
+        newValues: Row,
+    ): Boolean {
+        //сканировать опять весь файл и привести к json
+        val recordJson = getRecord()
+        //найти строку по id через get и если такой нет, то создать через инсерт,
+        val line = recordJson.find { lineId -> lineId.id == id.v }
+        var result: Boolean;
+        if (line != null) {
+            for ((key, value) in newValues.values) {
+                line.payload.values[key] = value
+                // а если есть то изменить поля
+            }
+            //пройтись по json и перезаписать строку
+            val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.map { row ->
+                if (row.id == line.id) {
+                    RecordFormat.RecordLineLocal(
+                        tombstone = line.tombstone,
+                        id = line.id,
+                        payload = Row(line.payload.values)
+                    )
+                } else {
+                    row
+                }
+            }
+            dataFile.writeText("")
+            for (row in updatedJson) {
+                insert(row.payload, FieldType.LONG(row.id), FieldType.BOOL(row.tombstone))
+            }
+            result = true
+        } else {
+            insert(newValues)
+            result = true
 
-    override fun upsert(row: Row): RowId = TODO()
+        }
+
+        return result
+    }
 
     override fun delete(fields: Map<String, FieldType>): Boolean {
         // Найти строки по условию
         val rowsToDelete = get(fields) ?: return false
 
-        val recordJson: List<RecordFormat.RecordLineLocal> = record.readAll()
-            .map { rec ->
-                RecordFormat.RecordLineLocal(
-                    tombstone = rec.tombstone,
-                    id = rec.id,
-                    payload = json.decodeFromString(Row.serializer(), rec.payload)
-                )
-            }
+        val recordJson = getRecord()
 
         // Пометить tombstone = true для нужных строк
         val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.map { line ->
@@ -134,11 +176,7 @@ class LocalTable(
                 )
 
             } else {
-                RecordFormat.RecordLineLocal(
-                    tombstone = false,
-                    id = line.id,
-                    payload = line.payload
-                )
+                line
             }
         }
         dataFile.writeText("")
@@ -154,14 +192,4 @@ class LocalTable(
         return true
     }
 
-    override fun scan(
-        predicate: Predicate,
-        sort: Sort,
-        limit: Int,
-        offset: Int,
-    ): Cursor<Row> = TODO()
-
-    override fun countApprox(): Long = TODO()
-
-    override fun compact() {}
 }

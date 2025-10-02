@@ -21,32 +21,57 @@ fun main() {
     val localTable: Table = engine.getOrCreateTable(schemaTable)
     println("table ok")
 
-    val idRow =
-        localTable.insert(
-            Row(
-                values =
-                    mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
-            ),
+//    val idRow =
+//        localTable.insert(
+//            Row(
+//                values =
+//                    mutableMapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
+//            ),
+//
+//        )
+//    localTable.insert(
+//        Row(
+//            values =
+//                mutableMapOf("lastName" to STRING("ABC"), "age" to LONG(23)),
+//
+//            ),
+//
+//        )
+//    println("idRow: $idRow")
 
-        )
-    localTable.insert(
-        Row(
-            values =
-                mapOf("lastName" to STRING("ABC"), "age" to LONG(23)),
 
-            ),
-
-        )
-    println("idRow: $idRow")
-
-    val a = localTable.get(mapOf("age" to LONG(23)))
-    println("before: $a")
-
-    val del = localTable.delete(mapOf("lastName" to STRING("Beznosova")))
+    val d = localTable.get(mapOf("age" to LONG(23)))
+    if (d != null) {
+        for (row in d) {
+            println("TOMBSTONE: ${row.tombstone} PAYLOAD:${row.payload}")
+        }
+    }
+    val del = localTable.delete(mapOf("lastName" to STRING("ABC")))
     println("del: $del")
-    val b = localTable.get(mapOf("age" to LONG(23)))
-    println("after: $b")
+    val t=localTable.compact();
 
-//    val a2 = localTable.get(RowId(1))
-//    println("a: $a2")
+    val u = localTable.get(mapOf("age" to LONG(23)))
+    if (u != null) {
+        for (row in u) {
+            println("TOMBSTONE: ${row.tombstone} PAYLOAD:${row.payload}")
+        }
+    }
+//    val d = localTable.upsert(
+//        FieldType.LONG(3), (Row(mutableMapOf("lastName" to FieldType.STRING("Nosova"))))
+//    )
+
+//
+//    val c = localTable.get(mapOf())
+//    if (c != null) {
+//        for (row in c) {
+//            println("TOMBSTONE: ${row.tombstone} PAYLOAD:${row.payload}")
+//        }
+//    }
+//    val del2 = localTable.delete(mapOf("lastName" to STRING("Nosova")))
+//    val c2 = localTable.get(mapOf())
+//    if (c2 != null) {
+//        for (row in c2) {
+//            println("TOMBSTONE2: ${row.tombstone} PAYLOAD2:${row.payload}")
+//        }
+//    }
 }
