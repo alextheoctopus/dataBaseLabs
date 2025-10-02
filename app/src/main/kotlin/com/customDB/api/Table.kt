@@ -161,35 +161,41 @@ class LocalTable(
     }
 
     override fun delete(fields: Map<String, FieldType>): Boolean {
-        // Найти строки по условию
-        val rowsToDelete = get(fields) ?: return false
-
-        val recordJson = getRecord()
-
-        // Пометить tombstone = true для нужных строк
-        val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.map { line ->
-            if (rowsToDelete.any { it.id == line.id }) {
-                RecordFormat.RecordLineLocal(
-                    tombstone = true,
-                    id = line.id,
-                    payload = line.payload
-                )
-
-            } else {
-                line
-            }
-        }
-        dataFile.writeText("")
-        for (row in updatedJson) {
-            insert(
-                values = row.payload,
-                id = FieldType.LONG(row.id),
-                tombstone = FieldType.BOOL(row.tombstone)
+        val all = record.readAll().map { rec ->
+            RecordFormat.RecordLineLocal(
+                tombstone = rec.tombstone,
+                id = rec.id,
+                payload = json.decodeFromString(Row.serializer(), rec.payload)
             )
         }
 
+        var changed = false
 
-        return true
+        fun matches(rec: RecordFormat.RecordLineLocal): Boolean {
+            return fields.all { (k, v) ->
+                if (k == "id") {
+                    (v is FieldType.LONG) && (v.v == rec.id)
+                } else {
+                    rec.payload.values[k] == v
+                }
+            }
+        }
+
+        val updated = all.map { rec ->
+            if (!rec.tombstone && matches(rec)) {
+                changed = true
+                rec.copy(tombstone = true)
+            } else rec
+        }
+
+        if (changed) {
+            dataFile.writeText("")
+            updated.forEach { line ->
+                insert(line.payload, FieldType.LONG(line.id), FieldType.BOOL(line.tombstone))
+            }
+        }
+        return changed
     }
+
 
 }

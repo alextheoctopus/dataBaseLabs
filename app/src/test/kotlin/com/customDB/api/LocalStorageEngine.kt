@@ -59,12 +59,12 @@ class LocalTableTest {
         assertEquals(
             listOf(
                 RecordFormat.RecordLineLocal(
-                    tombstone = true,
+                    tombstone = false,
                     id = 1L,
                     Row(mutableMapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)))
                 ),
                 RecordFormat.RecordLineLocal(
-                    tombstone = true,
+                    tombstone = false,
                     id = 2L,
                     Row(mutableMapOf("lastName" to STRING("Komarov"), "age" to LONG(23)))
                 ),
@@ -79,13 +79,14 @@ class LocalTableTest {
         assertEquals(
             listOf(
                 RecordFormat.RecordLineLocal(
-                    tombstone = true,
+                    tombstone = false,
                     id = 2L,
                     Row(mutableMapOf("lastName" to STRING("Komarov"), "age" to LONG(23)))
                 ),
             ),
             gotAfterDelete
         )
+
 
         val upserted = table.upsert(RowId(2), Row(mutableMapOf("lastName" to FieldType.STRING("Sovenko"))));
         assertTrue(upserted)
@@ -94,7 +95,7 @@ class LocalTableTest {
         assertEquals(
             listOf(
                 RecordFormat.RecordLineLocal(
-                    tombstone = true,
+                    tombstone = false,
                     id = 2L,
                     Row(mutableMapOf("lastName" to STRING("Sovenko"), "age" to LONG(23)))
                 ),
@@ -107,7 +108,7 @@ class LocalTableTest {
         assertEquals(
             listOf(
                 RecordFormat.RecordLineLocal(
-                    tombstone = true,
+                    tombstone = false,
                     id = 2L,
                     Row(mutableMapOf("lastName" to STRING("Sovenko"), "age" to LONG(23)))
                 ),
