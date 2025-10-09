@@ -1,14 +1,10 @@
 package com.customDB
 
+import com.customDB.api.*
 import com.customDB.api.FieldType.BOOL
 import com.customDB.api.FieldType.LONG
 import com.customDB.api.FieldType.PK
 import com.customDB.api.FieldType.STRING
-import com.customDB.api.LocalStorageEngine
-import com.customDB.api.Row
-import com.customDB.api.RowId
-import com.customDB.api.Table
-import com.customDB.api.TableSchema
 import java.io.File
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -17,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class LocalTableTest {
+
 
     private val tableName = "TestTable"
     private val baseDir = File("src/test") // как в main
@@ -49,20 +46,74 @@ class LocalTableTest {
         val table = newTable()
 
         val line = table.insert(
-            Row(mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23))),
+            Row(mutableMapOf("lastName" to STRING("Beznosova"), "age" to LONG(23))),
         )
         assertTrue(line.contains("\"id\":1"))
 
-        val got = table.get(RowId(1))
+        val line2 = table.insert(
+            Row(mutableMapOf("lastName" to STRING("Komarov"), "age" to LONG(23))),
+        )
+        assertTrue(line2.contains("\"id\":2"))
+
+        val got = table.get(mutableMapOf("age" to LONG(23)))
         assertEquals(
-            Row(mapOf("lastName" to STRING("Beznosova"), "age" to LONG(23))),
-            got,
+            listOf(
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = 1L,
+                    Row(mutableMapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)))
+                ),
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = 2L,
+                    Row(mutableMapOf("lastName" to STRING("Komarov"), "age" to LONG(23)))
+                ),
+            ),
+            got
         )
 
-        val deleted = table.delete(RowId(1))
+        val deleted = table.delete(mutableMapOf("id" to LONG(1)))
         assertTrue(deleted)
 
-        val gotAfterDelete = table.get(RowId(1))
-        assertNull(gotAfterDelete)
+        val gotAfterDelete = table.get(mutableMapOf("age" to LONG(23)))
+        assertEquals(
+            listOf(
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = 2L,
+                    Row(mutableMapOf("lastName" to STRING("Komarov"), "age" to LONG(23)))
+                ),
+            ),
+            gotAfterDelete
+        )
+
+
+        val upserted = table.upsert(RowId(2), Row(mutableMapOf("lastName" to FieldType.STRING("Sovenko"))));
+        assertTrue(upserted)
+
+        val gotAfterUpsert = table.get(mutableMapOf())
+        assertEquals(
+            listOf(
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = 2L,
+                    Row(mutableMapOf("lastName" to STRING("Sovenko"), "age" to LONG(23)))
+                ),
+            ),
+            gotAfterUpsert
+        )
+
+        table.compact()
+        val gotAfterCompact = table.get(mutableMapOf())
+        assertEquals(
+            listOf(
+                RecordFormat.RecordLineLocal(
+                    tombstone = false,
+                    id = 2L,
+                    Row(mutableMapOf("lastName" to STRING("Sovenko"), "age" to LONG(23)))
+                ),
+            ),
+            gotAfterCompact
+        )
     }
 }

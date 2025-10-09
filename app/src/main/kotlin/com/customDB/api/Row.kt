@@ -8,5 +8,5 @@ typealias RowId = FieldType.LONG
 @Serializable
 data class Row(
     // val id: RowId = 0L,                          // Предлагаю генерировать самим
-    val values: Map<String, FieldType?>, // только поля из TableSchema.fields
+    val values: MutableMap<String, FieldType?>, // только поля из TableSchema.fields
 )

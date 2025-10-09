@@ -10,10 +10,18 @@ class RecordFormat(private val file: File) {
 
     @Serializable
     data class RecordLine(
-        val tombstone: Boolean = false,
+        val tombstone: Boolean,
         val id: Long,
         val payload: String,
     )
+    @Serializable
+    data class RecordLineLocal(
+        var tombstone: Boolean,
+        val id: Long,
+        val payload: Row,
+    )
+
+
 
     /** Записать запись в файл */
     fun append(
