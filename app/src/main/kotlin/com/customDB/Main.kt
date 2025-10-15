@@ -21,6 +21,14 @@ fun main() {
     val localTable: Table = engine.getOrCreateTable(schemaTable)
     println("table ok")
 
+    val sql = SqlEngine(engine)
+
+    sql.execute("CREATE TABLE Users (id INT, name STRING, age INT)")
+    sql.execute("INSERT INTO Users (id, name, age) VALUES (1, 'Alice', 25)")
+    val result = sql.execute("SELECT * FROM Users WHERE name = 'Alice'")
+    sql.execute("DROP TABLE Users")
+    println(result)
+
 //    val idRow =
 //        localTable.insert(
 //            Row(
