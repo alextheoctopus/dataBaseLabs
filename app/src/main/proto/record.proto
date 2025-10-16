@@ -5,6 +5,12 @@ option java_outer_classname = "RecordOuterClass";
 
 message Record {
   int64 id = 1;
-  string lastName = 2;
-  int64 age = 3;
+  string invoiceNo = 2;
+  string stockCode = 3;
+  string description = 4;
+  int64 quantity = 5;
+  string invoiceDate = 6;
+  double unitPrice = 7;
+  string customerID = 8;
+  string country = 9;
 }

@@ -2,6 +2,8 @@ package com.customDB
 
 import com.customDB.api.*
 import com.customDB.api.FieldType.*
+import java.io.File
+
 import com.google.protobuf.InvalidProtocolBufferException
 import java.nio.ByteBuffer
 import kotlin.system.measureNanoTime
@@ -11,12 +13,18 @@ fun main() {
     println("Try to create schema")
     val schemaTable =
         TableSchema(
-            name = "TestTable",
+            name = "SalesDataset",
             fields =
                 listOf(
                     TableSchema.Column("id", PK(start = 0), false),
-                    TableSchema.Column("lastName", STRING(""), false),
-                    TableSchema.Column("age", LONG(0), true),
+                    TableSchema.Column("InvoiceNo", LONG(0), true),
+                    TableSchema.Column("StockCode", STRING(""), true),
+                    TableSchema.Column("Description", STRING(""), true),
+                    TableSchema.Column("Quantity", LONG(0), true),
+                    TableSchema.Column("InvoiceDate", STRING(""), true),
+                    TableSchema.Column("UnitPrice", DOUBLE(0.0), true),
+                    TableSchema.Column("CustomerID", STRING(""), true),
+                    TableSchema.Column("Country", STRING(""), true),
                 ),
         )
     println("Schema ok")
@@ -26,43 +34,91 @@ fun main() {
     println("table ok")
 
     fun compareEncoding() {
-        val row = Row(mutableMapOf("id" to LONG(1), "lastName" to STRING("Beznosova"), "age" to LONG(23)))
-
-        // --- Твой формат ---
+        val basepath = File("src", "datasets");
+        val datasetFile = File(basepath, "data.csv")
         val startEncode1 = System.nanoTime()
-        val bytesCustom = localTable.insert(row) // используем твой бинарный формат
+        var bytesCustom = 0
+        val keys = listOf(
+            "InvoiceNo",
+            "StockCode",
+            "Description",
+            "Quantity",
+            "InvoiceDate",
+            "UnitPrice",
+            "CustomerID",
+            "Country"
+        )
+
+        fun reuseMapBuilder(values: List<String>): MutableMap<String, FieldType?> {
+            val fieldMap = keys.zip(values).associate { (key, value) ->
+                key to when (key) {
+                    "Quantity" -> LONG(value.toLongOrNull() ?: 0)
+                    "UnitPrice" -> DOUBLE(value.toDoubleOrNull() ?: 0.0)
+                    "InvoiceNo" -> LONG(value.toLongOrNull() ?: 0)
+                    "StockCode" -> STRING(value)
+                    "Description" -> STRING(value)
+                    "Quantity" -> LONG(value.toLongOrNull() ?: 0)
+                    "InvoiceDate" -> STRING(value)
+                    "UnitPrice" -> DOUBLE(value.toDoubleOrNull() ?: 0.0)
+                    "CustomerID" -> STRING(value)
+                    "Country" -> STRING(value)
+                    else -> null
+                }
+            }.toMutableMap()
+            return fieldMap
+        }
+        datasetFile.useLines { lines ->
+            for (line in lines.take(100)) {
+                val values = line.split(",")
+                val row = Row(reuseMapBuilder(values))
+                bytesCustom+= localTable.insert(row)
+            }
+        }
+
         val timeEncode1 = System.nanoTime() - startEncode1
+
 
         val startDecode1 = System.nanoTime()
         localTable.get(mapOf())
         val timeDecode1 = System.nanoTime() - startDecode1
 
-        // --- Protobuf ---
-        val protoRecord = Record.newBuilder()
-            .setId(1)
-            .setLastName("Beznosova")
-            .setAge(23)
-            .build()
-
         val startEncode2 = System.nanoTime()
-        val bytesProto = protoRecord.toByteArray()
-        val timeEncode2 = System.nanoTime() - startEncode2
+        var totalProtoSize = 0
+        datasetFile.useLines { lines ->
+            for ((index, line) in lines.take(100).withIndex()) {
+                val values = line.split(",")
+                val row = Row(reuseMapBuilder(values))
 
-        val startDecode2 = System.nanoTime()
-        Record.parseFrom(bytesProto)
-        val timeDecode2 = System.nanoTime() - startDecode2
+                val record = Record.newBuilder()
+                    .setId(index + 1L)
+                    .setInvoiceNo((row.values["InvoiceNo"] as? LONG)?.v.toString())
+                    .setStockCode((row.values["StockCode"] as? STRING)?.v ?: "")
+                    .setDescription((row.values["Description"] as? STRING)?.v ?: "")
+                    .setQuantity((row.values["Quantity"] as? LONG)?.v ?: 0)
+                    .setInvoiceDate((row.values["InvoiceDate"] as? STRING)?.v ?: "")
+                    .setUnitPrice((row.values["UnitPrice"] as? DOUBLE)?.v ?: 0.0)
+                    .setCustomerID((row.values["CustomerID"] as? STRING)?.v ?: "")
+                    .setCountry((row.values["Country"] as? STRING)?.v ?: "")
+                    .build()
+
+                val protoBytes = record.toByteArray()
+                totalProtoSize += protoBytes.size
+            }
+        }
+        val timeEncode2 = System.nanoTime() - startEncode2
 
         println("CustomBinary:")
         println("Size: ${bytesCustom} bytes")
-        println("Encode time: ${timeEncode1 / 1_000.0} ms")
-        println("Decode time: ${timeDecode1 / 1_000.0} ms")
+        println("Encode time: ${timeEncode1 / 1_000_000.0} ms")
+        println("Decode time: ${timeDecode1 / 1_000_000.0} ms")
 
         println("Protobuf:")
-        println("Size: ${bytesProto.size} bytes")
-        println("Encode time: ${timeEncode2 / 1_000.0} ms")
-        println("Decode time: ${timeDecode2 / 1_000.0} ms")
+        println("Size: ${totalProtoSize} bytes")
+        println("Encode time: ${timeEncode2 / 1_000_000.0} ms")
     }
     compareEncoding()
+
+
 }
 
 //    val idRow =
