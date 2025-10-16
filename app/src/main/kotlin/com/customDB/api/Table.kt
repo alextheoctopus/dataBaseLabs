@@ -10,7 +10,7 @@ interface Table {
     val record: RecordFormat
 
     /** Вставить строку. Возвращаем СТРОКУ, записанную в .tbl */
-    fun insert(values: Row, id: FieldType.LONG? = null, tombstone: FieldType.BOOL? = null): String
+    fun insert(values: Row, id: FieldType.LONG? = null, tombstone: FieldType.BOOL? = null)/*: String*/
 
     fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>?
 
@@ -53,14 +53,15 @@ class LocalTable(
     }
 
     private fun getRecord(): List<RecordFormat.RecordLineLocal> {
-        var result: List<RecordFormat.RecordLineLocal> = record.readAll()
-            .map { rec ->
-                RecordFormat.RecordLineLocal(
-                    tombstone = rec.tombstone,
-                    id = rec.id,
-                    payload = json.decodeFromString(Row.serializer(), rec.payload)
-                )
-            }.filter { !it.tombstone }//только живые
+        var result: List<RecordFormat.RecordLineLocal> = record.readAll(schema)
+//            .map { rec ->
+//                RecordFormat.RecordLineLocal(
+//                    tombstone = rec.tombstone,
+//                    id = rec.id,
+//                    payload = json.decodeFromString(Row.serializer(), rec.payload)
+//                )
+//            }
+            .filter { !it.tombstone }//только живые
         return result;
     }
 
@@ -77,19 +78,21 @@ class LocalTable(
     }
 
     /** Вставить строку и вернуть СТРОКУ, которая записана в .tbl */
-    override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?): String {
+    override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?)/*: String*/ {
         // если id не передан → генерим новый
         val rowId: Long = id?.v ?: nextRowId().v
 
         // если tombstone не передан → считаем, что запись живая
         val tombstoneFlag = tombstone?.v ?: false
 
-        val payload = json.encodeToString(Row.serializer(), values)
-
+        println("ROWID  " + rowId);
         return record.append(
-            tombstone = tombstoneFlag,
-            id = FieldType.LONG(rowId),
-            payload = payload//должен всегда содержать все столбцы? сделать проверку
+            RecordFormat.RecordLineLocal(
+                tombstoneFlag,
+                rowId,
+                values//должен всегда содержать все столбцы? сделать проверку
+            ),
+            schema
         )
     }
 
@@ -97,12 +100,11 @@ class LocalTable(
     //Возвращает живые строки по заданным полям
     override fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>? {
 
-        val recordJson = getRecord()
-
-        if (fields.isEmpty()) return recordJson
+        val record = getRecord()
+        if (fields.isEmpty()) return record
         val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
-        for (rec in recordJson) {
+        for (rec in record) {
             if (!rec.tombstone) {//если запись мертвая, то пропустить
 
                 // проверяем, что все поля совпадают и живые
@@ -115,6 +117,7 @@ class LocalTable(
                 }
             }
         }
+
 
         return if (foundData.isNotEmpty()) foundData else null
     }
@@ -161,13 +164,14 @@ class LocalTable(
     }
 
     override fun delete(fields: Map<String, FieldType>): Boolean {
-        val all = record.readAll().map { rec ->
-            RecordFormat.RecordLineLocal(
-                tombstone = rec.tombstone,
-                id = rec.id,
-                payload = json.decodeFromString(Row.serializer(), rec.payload)
-            )
-        }
+        val all = record.readAll(schema)
+//            .map { rec ->
+//            RecordFormat.RecordLineLocal(
+//                tombstone = rec.tombstone,
+//                id = rec.id,
+//                payload = json.decodeFromString(Row.serializer(), rec.payload)
+//            )
+//        }
 
         var changed = false
 

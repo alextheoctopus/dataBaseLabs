@@ -1,1 +1,0 @@
-{"name":"TestTable","fields":[{"name":"id","type":{"type":"com.customDB.api.FieldType.PK","start":0}},{"name":"lastName","type":{"type":"com.customDB.api.FieldType.STRING","v":""}},{"name":"age","type":{"type":"com.customDB.api.FieldType.LONG","v":0},"nullable":true}]}
