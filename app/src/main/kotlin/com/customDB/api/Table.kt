@@ -9,8 +9,8 @@ interface Table {
     val schema: TableSchema
     val record: RecordFormat
 
-    /** Вставить строку. Возвращаем СТРОКУ, записанную в .tbl */
-    fun insert(values: Row, id: FieldType.LONG? = null, tombstone: FieldType.BOOL? = null)/*: String*/
+    /** Вставить строку. Возвращаем размер записанной строки */
+    fun insert(values: Row, id: FieldType.LONG? = null, tombstone: FieldType.BOOL? = null): Int
 
     fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>?
 
@@ -78,7 +78,7 @@ class LocalTable(
     }
 
     /** Вставить строку и вернуть СТРОКУ, которая записана в .tbl */
-    override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?)/*: String*/ {
+    override fun insert(values: Row, id: FieldType.LONG?, tombstone: FieldType.BOOL?): Int {
         // если id не передан → генерим новый
         val rowId: Long = id?.v ?: nextRowId().v
 

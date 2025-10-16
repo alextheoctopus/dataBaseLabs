@@ -56,7 +56,7 @@ class RecordFormat(private val file: File) {
     }
 
 
-    fun append(record: RecordLineLocal, schema: TableSchema) {
+    fun append(record: RecordLineLocal, schema: TableSchema): Int {
         val page = java.nio.ByteBuffer.allocate(getSizeDynamically(record, schema))//4kb
         page.put(if (record.tombstone) 1 else 0)
         page.putLong(record.id)
@@ -104,6 +104,7 @@ class RecordFormat(private val file: File) {
             raf.seek(raf.length())
             raf.write(bytes)
         }
+        return bytes.size
     }
 
     fun readAll(schema: TableSchema): List<RecordLineLocal> {

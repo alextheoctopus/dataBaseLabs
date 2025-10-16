@@ -44,37 +44,37 @@ class LocalStorageEngine @JvmOverloads constructor(
         }
     }
 
-    private fun updateMetaField(
-        tableName: String,
-        field: String,
-        value: String,
-    ) {
-        val metaFile = tableMetaFile(tableName)
-
-        val text = metaFile.readText()
-        val json = Json.parseToJsonElement(text).jsonObject
-
-        val updated =
-            JsonObject(
-                json.toMutableMap().apply {
-                    this[field] = JsonPrimitive(value)
-                },
-            )
-
-        metaFile.writeText(Json.encodeToString(JsonObject.serializer(), updated))
-    }
-
-    private fun getMetaField(
-        tableName: String,
-        field: String,
-    ): String? {
-        val metaFile = tableMetaFile(tableName)
-
-        val text = metaFile.readText()
-        val json = Json.parseToJsonElement(text).jsonObject
-
-        return json[field]?.jsonPrimitive?.contentOrNull
-    }
+//    private fun updateMetaField(
+//        tableName: String,
+//        field: String,
+//        value: String,
+//    ) {
+//        val metaFile = tableMetaFile(tableName)
+//
+//        val text = metaFile.readText()
+//        val json = Json.parseToJsonElement(text).jsonObject
+//
+//        val updated =
+//            JsonObject(
+//                json.toMutableMap().apply {
+//                    this[field] = JsonPrimitive(value)
+//                },
+//            )
+//
+//        metaFile.writeText(Json.encodeToString(JsonObject.serializer(), updated))
+//    }
+//
+//    private fun getMetaField(
+//        tableName: String,
+//        field: String,
+//    ): String? {
+//        val metaFile = tableMetaFile(tableName)
+//
+//        val text = metaFile.readText()
+//        val json = Json.parseToJsonElement(text).jsonObject
+//
+//        return json[field]?.jsonPrimitive?.contentOrNull
+//    }
 
     override fun close() {
     }

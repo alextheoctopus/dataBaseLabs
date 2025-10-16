@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option java_package = "com.customDB.protobuf";
+option java_outer_classname = "RecordOuterClass";
+
+message Record {
+  int64 id = 1;
+  string lastName = 2;
+  int64 age = 3;
+}
