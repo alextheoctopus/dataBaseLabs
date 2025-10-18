@@ -32,6 +32,14 @@ dependencies {
     implementation(kotlin("stdlib"))
     implementation("io.arrow-kt:arrow-core:1.2.4")
     implementation("com.github.jsqlparser:jsqlparser:4.8")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation(kotlin("test"))  // Kotlin assertions (assertEquals, assertTrue и т.д.)
+}
+
+tasks.test {
+    useJUnitPlatform() // обязательно для JUnit5
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

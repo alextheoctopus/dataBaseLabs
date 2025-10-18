@@ -13,6 +13,8 @@ import net.sf.jsqlparser.statement.alter.Alter
 import net.sf.jsqlparser.expression.StringValue
 import net.sf.jsqlparser.expression.LongValue
 import net.sf.jsqlparser.expression.DoubleValue
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo
+import net.sf.jsqlparser.schema.Column
 
 import java.io.File
 
@@ -89,12 +91,12 @@ class SqlEngine(private val engine: LocalStorageEngine) {
         val table = engine.getOrCreateTableFromMeta(tableName)
         val filterFields = mutableMapOf<String, FieldType>()
 
-        if (where is net.sf.jsqlparser.expression.operators.relational.EqualsTo) {
-            val column = (where.leftExpression as net.sf.jsqlparser.schema.Column).columnName
+        if (where is EqualsTo) {
+            val column = (where.leftExpression as Column).columnName
             val valueExpr = where.rightExpression
             val fieldValue = when (valueExpr) {
-                is net.sf.jsqlparser.expression.StringValue -> FieldType.STRING(valueExpr.value)
-                is net.sf.jsqlparser.expression.LongValue -> FieldType.LONG(valueExpr.value)
+                is StringValue -> FieldType.STRING(valueExpr.value)
+                is LongValue -> FieldType.LONG(valueExpr.value)
                 else -> FieldType.STRING(valueExpr.toString())
             }
             filterFields[column] = fieldValue
@@ -109,25 +111,62 @@ class SqlEngine(private val engine: LocalStorageEngine) {
         val tableName = stmt.table.name
         val table = engine.getOrCreateTableFromMeta(tableName)
 
-        val setCols = stmt.columns.map { it.columnName }
-        val setVals = stmt.expressions.map { it.toString().trim('\'') }
+        // новые значения
+        val newRowValues = mutableMapOf<String, FieldType?>()
+        stmt.columns.forEachIndexed { i, col ->
+            val expr = stmt.expressions[i]
+            newRowValues[col.columnName] = when (expr) {
+                is StringValue -> FieldType.STRING(expr.value)
+                is LongValue -> FieldType.LONG(expr.value)
+                is DoubleValue -> FieldType.DOUBLE(expr.value)
+                else -> FieldType.STRING(expr.toString())
+            }
+        }
 
-        val newRow = Row(setCols.zip(setVals.map { FieldType.STRING(it) }).toMap().toMutableMap())
+        // фильтр WHERE
+        val filterFields = mutableMapOf<String, FieldType>()
+        if (stmt.where is EqualsTo) {
+            val whereExpr = stmt.where as EqualsTo
+            val key = (whereExpr.leftExpression as Column).columnName
+            val value = when (val expr = whereExpr.rightExpression) {
+                is StringValue -> FieldType.STRING(expr.value)
+                is LongValue -> FieldType.LONG(expr.value)
+                is DoubleValue -> FieldType.DOUBLE(expr.value)
+                else -> FieldType.STRING(expr.toString())
+            }
+            filterFields[key] = value
+        }
 
-        val where = stmt.where.toString().split("=").map { it.trim() }
-        val id = where[1].trim('\'').toLong()
+        val rowsToUpdate = table.get(filterFields) ?: emptyList()
 
-        return table.upsert(FieldType.LONG(id), newRow)
+        for (rowLine in rowsToUpdate) {
+            val updatedRow = Row(rowLine.payload.values.toMutableMap())
+            for ((k, v) in newRowValues) {
+                updatedRow.values[k] = v
+            }
+
+            // здесь обязательно вызываем upsert, чтобы изменения сохранились
+            table.upsert(FieldType.LONG(rowLine.id), updatedRow)
+        }
+
+        return true
     }
 
     private fun handleDelete(stmt: Delete): Boolean {
         val tableName = stmt.table.name
         val table = engine.getOrCreateTableFromMeta(tableName)
-        val where = stmt.where.toString().split("=").map { it.trim() }
-        val (field, value) = where
-        val cond = mapOf(field to FieldType.STRING(value.trim('\'')))
-        return table.delete(cond)
+        val where = stmt.where as EqualsTo
+        val key = (where.leftExpression as Column).columnName
+        val rawValue = (where.rightExpression)
+        val value: FieldType = when (rawValue) {
+            is StringValue -> FieldType.STRING(rawValue.value)
+            is LongValue -> FieldType.LONG(rawValue.value)
+            is DoubleValue -> FieldType.DOUBLE(rawValue.value)
+            else -> FieldType.STRING(rawValue.toString())
+        }
+        return table.delete(mapOf(key to value))
     }
+
 
     private fun handleDrop(stmt: Drop): Boolean {
         val tableName = stmt.name.name
