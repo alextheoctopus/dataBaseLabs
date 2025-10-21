@@ -25,16 +25,19 @@ class RecordFormat(private val file: File) {
     private fun getSizeDynamically(record: RecordLineLocal, schema: TableSchema): Int {
         var size = 0
 
-        size += 1 // tombstone
-        size += 8 // id
+        size += 1 // tombstone, либо 0, либо 1
+        size += 8 // id, тип LONG -> 8байт
 
         for (column in schema.fields) {
-            size += 1 // null-flag
+            size += 1 // null-flag, чтобы машина при обработке понимала значение у поля есть, или оно пустое и его пропускаем
 
             val value = record.payload.values[column.name]
             if (value == null) continue
 
             size += when (column.type) {
+                //Т.к. мы не можем заранее знать размер строки,
+                // то сначала выделяем 4 байта для записи ее длины, чтобы машина знала,
+                // где конец значения
                 is FieldType.STRING -> {
                     val bytes = (value as FieldType.STRING).v.toByteArray(Charsets.UTF_8)
                     4 + bytes.size // 4 байта длина + содержимое
@@ -43,6 +46,7 @@ class RecordFormat(private val file: File) {
                 is FieldType.LONG, is FieldType.PK -> 8
                 is FieldType.DOUBLE -> 8
                 is FieldType.BOOL -> 1
+                //Аналогично как со строкой для байтов
                 is FieldType.BYTES -> {
                     val bytes = (value as FieldType.BYTES).v
                     4 + bytes.size
@@ -57,21 +61,23 @@ class RecordFormat(private val file: File) {
 
 
     fun append(record: RecordLineLocal, schema: TableSchema): Int {
-        val page = java.nio.ByteBuffer.allocate(getSizeDynamically(record, schema))//4kb
+        //1. Динамически высчитываем необходимый объем памяти который понадобится для формирования массива байт
+        val page = java.nio.ByteBuffer.allocate(getSizeDynamically(record, schema))
+        //2. начинаем записывать в выделенный объем памяти значение.
         page.put(if (record.tombstone) 1 else 0)
         page.putLong(record.id)
-
+        //Цикл по полям структуры данных
         for (field in schema.fields) {
             val value = record.payload.values[field.name]
-
+            //проверяем на наличие значения и отмечаем это в null-flag
             page.put(if (value == null) 1 else 0)
             if (value == null) continue
-
+            //в зависимости от типа данных кодируем по алгоритму
             when (field.type) {
                 is FieldType.STRING -> {
                     val bytes = (value as FieldType.STRING).v.toByteArray(Charsets.UTF_8)
-                    page.putInt(bytes.size)
-                    page.put(bytes)
+                    page.putInt(bytes.size)//длина строки
+                    page.put(bytes)//сама строка
                 }
 
                 is FieldType.LONG, is FieldType.PK -> {
@@ -94,11 +100,14 @@ class RecordFormat(private val file: File) {
                 else -> error("Unsupported type ${field.type}")
             }
         }
+        // Процесс переноса байтов из буфера на диск
+        page.flip()//закрываем буфер, ограничиваем чтение реальным размером записанных данных
 
-        page.flip()
         val bytes = ByteArray(page.limit())
         page.get(bytes)
-
+        //копирует байты из ByteBuffer в обычный массив ByteArray
+        //После этой операции position увеличивается до конца (равен `limit`),
+        //и теперь bytes содержит все данные записи в виде простого массива.
         file.parentFile?.mkdirs()
         RandomAccessFile(file, "rw").use { raf ->
             raf.seek(raf.length())
@@ -111,9 +120,9 @@ class RecordFormat(private val file: File) {
         if (!file.exists()) return emptyList()
         val list = mutableListOf<RecordLineLocal>()
         val bytes = file.readBytes()
-        val buffer = java.nio.ByteBuffer.wrap(bytes)
+        val buffer = java.nio.ByteBuffer.wrap(bytes) //ByteArray -> ByteBuffer
 
-        while (buffer.remaining() > 0) {
+        while (buffer.remaining() > 0) {//Есть данные в буфере
             val tombstone = buffer.get().toInt() == 1
             val id = buffer.long
 
@@ -122,7 +131,7 @@ class RecordFormat(private val file: File) {
                 val isNull = buffer.get().toInt() == 1
                 if (isNull) {
                     continue
-                }
+                }//проверка на нулевое значение
 
                 val field = when (column.type) {
                     is FieldType.STRING -> {

@@ -54,20 +54,13 @@ class LocalTable(
 
     private fun getRecord(): List<RecordFormat.RecordLineLocal> {
         var result: List<RecordFormat.RecordLineLocal> = record.readAll(schema)
-//            .map { rec ->
-//                RecordFormat.RecordLineLocal(
-//                    tombstone = rec.tombstone,
-//                    id = rec.id,
-//                    payload = json.decodeFromString(Row.serializer(), rec.payload)
-//                )
-//            }
             .filter { !it.tombstone }//только живые
         return result;
     }
 
     /**Очищение от мертвых записей*/
     override fun compact(): Boolean {
-        var result: Boolean = false;
+        var result= false;
         val recordJson = getRecord();
         val updatedJson: List<RecordFormat.RecordLineLocal> = recordJson.filter { !it.tombstone }
         dataFile.writeText("")

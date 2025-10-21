@@ -8,7 +8,9 @@ import com.google.protobuf.InvalidProtocolBufferException
 import java.nio.ByteBuffer
 import kotlin.system.measureNanoTime
 import com.customDB.protobuf.RecordOuterClass.Record
-
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+//Проект по созданию реляционный СУБД с файловым хранением на kotlin
 fun main() {
     println("Try to create schema")
     val schemaTable =
@@ -71,10 +73,9 @@ fun main() {
             for (line in lines.take(100)) {
                 val values = line.split(",")
                 val row = Row(reuseMapBuilder(values))
-                bytesCustom+= localTable.insert(row)
+                bytesCustom += localTable.insert(row)
             }
         }
-
         val timeEncode1 = System.nanoTime() - startEncode1
 
 
@@ -82,8 +83,11 @@ fun main() {
         localTable.get(mapOf())
         val timeDecode1 = System.nanoTime() - startDecode1
 
-        val startEncode2 = System.nanoTime()
+
         var totalProtoSize = 0
+        val outputStream = ByteArrayOutputStream()
+
+        val startEncode2 = System.nanoTime()
         datasetFile.useLines { lines ->
             for ((index, line) in lines.take(100).withIndex()) {
                 val values = line.split(",")
@@ -101,11 +105,24 @@ fun main() {
                     .setCountry((row.values["Country"] as? STRING)?.v ?: "")
                     .build()
 
-                val protoBytes = record.toByteArray()
-                totalProtoSize += protoBytes.size
+                val bytes = record.toByteArray()
+                totalProtoSize += bytes.size
+                outputStream.write(bytes)
             }
         }
         val timeEncode2 = System.nanoTime() - startEncode2
+
+        val allProtoBytes = outputStream.toByteArray()
+        val startDecodeProto = System.nanoTime()
+        val input = ByteArrayInputStream(allProtoBytes)
+        repeat(100) {
+            try {
+                Record.parseDelimitedFrom(input)
+            } catch (_: Exception) {
+                // достигнут конец потока
+            }
+        }
+        val decodeTimeProto = System.nanoTime() - startDecodeProto
 
         println("CustomBinary:")
         println("Size: ${bytesCustom} bytes")
@@ -115,6 +132,8 @@ fun main() {
         println("Protobuf:")
         println("Size: ${totalProtoSize} bytes")
         println("Encode time: ${timeEncode2 / 1_000_000.0} ms")
+        println("Decode time: ${decodeTimeProto / 1_000_000.0} ms")
+
     }
     compareEncoding()
 
