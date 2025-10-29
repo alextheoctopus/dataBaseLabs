@@ -93,21 +93,23 @@ class LocalTable(
         )
     }
 
-
     //Возвращает живые строки по заданным полям
     override fun get(fields: Map<String, FieldType>): List<RecordFormat.RecordLineLocal>? {
-
         val recordJson = getRecord()
+        println("DEBUG: all records = ${recordJson.map { it.payload.values }}")
+        println("DEBUG: looking for fields = $fields")
 
         if (fields.isEmpty()) return recordJson
         val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
         for (rec in recordJson) {
             if (!rec.tombstone) {//если запись мертвая, то пропустить
-
                 // проверяем, что все поля совпадают и живые
                 val matches = fields.all { (key, value) ->
-                    rec.payload.values[key] == value
+                    val storedValue = rec.payload.values[key]
+                    val match = storedValue?.toString() == value.toString()
+                    println("DEBUG: compare key=$key stored=$storedValue vs $value => $match")
+                    match
                 }
 
                 if (matches) {
@@ -115,10 +117,8 @@ class LocalTable(
                 }
             }
         }
-
         return if (foundData.isNotEmpty()) foundData else null
     }
-
 
     override fun upsert(
         id: RowId,
@@ -196,6 +196,4 @@ class LocalTable(
         }
         return changed
     }
-
-
 }
