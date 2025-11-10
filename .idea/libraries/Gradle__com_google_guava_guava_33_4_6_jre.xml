@@ -5,6 +5,8 @@
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.4.6-jre/4437fb72c3cc5d29554b588d9a97bea12d6a42e1/guava-33.4.6-jre.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.4.6-jre/e328f435a7601dbe5c4f40a46ba0e3c8ca6ee92c/guava-33.4.6-jre-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>
