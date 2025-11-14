@@ -2,6 +2,15 @@ package com.customDB
 
 import com.customDB.api.*
 import com.customDB.api.FieldType.*
+import com.customDB.api.LocalTable
+import com.customDB.api.FieldType
+import com.customDB.api.Row
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.types.*
+import java.io.File
+import kotlin.system.measureTimeMillis
+import org.apache.spark.sql.RowFactory
+import org.apache.spark.sql.types.DataTypes
 
 fun main() {
     println("Try to create schema")
@@ -27,25 +36,43 @@ fun main() {
     sql.execute("INSERT INTO Users (id, name, age) VALUES (1, 'Alice', 25)")
     val result = sql.execute("SELECT * FROM Users WHERE name = 'Alice'")
     sql.execute("DROP TABLE Users")
-    println(result)
 
-//    val idRow =
-//        localTable.insert(
-//            Row(
-//                values =
-//                    mutableMapOf("lastName" to STRING("Beznosova"), "age" to LONG(23)),
-//            ),
-//
-//        )
-//    localTable.insert(
-//        Row(
-//            values =
-//                mutableMapOf("lastName" to STRING("ABC"), "age" to LONG(23)),
-//
-//            ),
-//
-//        )
-//    println("idRow: $idRow")
+    localTable.insert(
+        Row(
+            mutableMapOf<String, FieldType?>(
+                "id" to FieldType.LONG(1),
+                "name" to FieldType.STRING("Alice"),
+                "age" to FieldType.LONG(25)
+            )
+        )
+    )
+
+    localTable.insert(
+        Row(
+            mutableMapOf<String, FieldType?>(
+                "id" to FieldType.LONG(2),
+                "name" to FieldType.STRING("Bob"),
+                "age" to FieldType.LONG(18)
+            )
+        )
+    )
+
+    localTable.insert(
+        Row(
+            mutableMapOf<String, FieldType?>(
+                "id" to FieldType.LONG(3),
+                "name" to FieldType.STRING("Charlie"),
+                "age" to FieldType.LONG(30)
+            )
+        )
+    )
+
+
+    if (localTable is LocalTable) {
+        convertTableToParquetOrc(localTable, "output")
+    }
+
+    println("Conversion to Parquet/ORC completed")
 
 
     val d = localTable.get(mapOf("age" to LONG(23)))
@@ -82,4 +109,66 @@ fun main() {
 //            println("TOMBSTONE2: ${row.tombstone} PAYLOAD2:${row.payload}")
 //        }
 //    }
+}
+
+fun convertTableToParquetOrc(localTable: LocalTable, outputDir: String) {
+    val spark = SparkSession.builder()
+        .appName("CustomDB to Parquet/ORC")
+        .master("local[*]")
+        .config("spark.driver.bindAddress", "127.0.0.1")
+        .config("spark.driver.host", "127.0.0.1")
+        .getOrCreate()
+
+    // Получаем все записи
+    val records = localTable.get(emptyMap()) ?: emptyList()
+    println("DEBUG: records loaded = ${records.size}")
+
+    if (records.isEmpty()) {
+        println("No records to convert.")
+        spark.stop()
+        return
+    }
+
+    // Преобразуем в Spark Rows
+    val sparkRows = records.map { rec ->
+        RowFactory.create(
+            rec.id as java.lang.Long, // RowFactory требует java.lang.Long
+            rec.payload.values["name"]?.toString(),
+            (rec.payload.values["age"] as? FieldType.LONG)?.v as java.lang.Long?
+        )
+    }
+
+    // Определяем схему
+    val schema = StructType(
+        arrayOf(
+            StructField("id", DataTypes.LongType, false, org.apache.spark.sql.types.Metadata.empty()),
+            StructField("name", DataTypes.StringType, true, org.apache.spark.sql.types.Metadata.empty()),
+            StructField("age", DataTypes.LongType, true, Metadata.empty())
+        )
+    )
+
+    // Создаем DataFrame
+    val df = spark.createDataFrame(sparkRows, schema)
+
+    // Фильтрация: age > 20
+    val filteredDF = df.filter("age > 20")
+
+    // Сохраняем Parquet и ORC
+    val parquetDir = "$outputDir/parquet"
+    val orcDir = "$outputDir/orc"
+    filteredDF.write().mode("overwrite").parquet(parquetDir)
+    filteredDF.write().mode("overwrite").orc(orcDir)
+
+    // Замер времени чтения
+    val parquetReadTime = measureTimeMillis { spark.read().parquet(parquetDir).show() }
+    val orcReadTime = measureTimeMillis { spark.read().orc(orcDir).show() }
+
+    // Размер файлов
+    val parquetSize = File(parquetDir).walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
+    val orcSize = File(orcDir).walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
+
+    println("Parquet size = $parquetSize bytes, read time = $parquetReadTime ms")
+    println("ORC size = $orcSize bytes, read time = $orcReadTime ms")
+
+    spark.stop()
 }

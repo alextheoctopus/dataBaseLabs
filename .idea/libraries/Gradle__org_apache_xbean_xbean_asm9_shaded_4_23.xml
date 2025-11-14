@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.xbean:xbean-asm9-shaded:4.23" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.xbean" artifactId="xbean-asm9-shaded" version="4.23" baseVersion="4.23" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.xbean/xbean-asm9-shaded/4.23/14e59bc47394bef27a6437074dc9178740832313/xbean-asm9-shaded-4.23.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

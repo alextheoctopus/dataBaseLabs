@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.logging.log4j" artifactId="log4j-slf4j2-impl" version="2.20.0" baseVersion="2.20.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-slf4j2-impl/2.20.0/155c8b9bbdac91d8461d9a403a646e6bd0d365d8/log4j-slf4j2-impl-2.20.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

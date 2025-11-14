@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.orc:orc-mapreduce:shaded-protobuf:1.9.1" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.orc" artifactId="orc-mapreduce" version="1.9.1" baseVersion="1.9.1" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.orc/orc-mapreduce/1.9.1/1d5732ef544f2c1101475052501ffe391ccbac06/orc-mapreduce-1.9.1-shaded-protobuf.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

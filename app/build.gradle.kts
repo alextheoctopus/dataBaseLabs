@@ -32,6 +32,8 @@ dependencies {
     implementation(kotlin("stdlib"))
     implementation("io.arrow-kt:arrow-core:1.2.4")
     implementation("com.github.jsqlparser:jsqlparser:4.8")
+    implementation("org.apache.spark:spark-core_2.12:3.5.0")
+    implementation("org.apache.spark:spark-sql_2.12:3.5.0")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
@@ -52,6 +54,12 @@ java {
 application {
     // Define the main class for the application.
     mainClass = "com.customDB.MainKt"
+
+    applicationDefaultJvmArgs = listOf(
+        "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
+        "-Dspark.driver.bindAddress=127.0.0.1",
+        "-Dspark.driver.host=127.0.0.1"
+    )
 }
 
 tasks.named<Test>("test") {
