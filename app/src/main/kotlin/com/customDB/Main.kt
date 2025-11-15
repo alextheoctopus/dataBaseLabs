@@ -2,15 +2,12 @@ package com.customDB
 
 import com.customDB.api.*
 import com.customDB.api.FieldType.*
-import com.customDB.api.LocalTable
-import com.customDB.api.FieldType
 import com.customDB.api.Row
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.*
+import org.apache.spark.sql.RowFactory
 import java.io.File
 import kotlin.system.measureTimeMillis
-import org.apache.spark.sql.RowFactory
-import org.apache.spark.sql.types.DataTypes
 
 fun main() {
     println("Try to create schema")
@@ -47,34 +44,6 @@ fun main() {
         )
     )
 
-    localTable.insert(
-        Row(
-            mutableMapOf<String, FieldType?>(
-                "id" to FieldType.LONG(2),
-                "name" to FieldType.STRING("Bob"),
-                "age" to FieldType.LONG(18)
-            )
-        )
-    )
-
-    localTable.insert(
-        Row(
-            mutableMapOf<String, FieldType?>(
-                "id" to FieldType.LONG(3),
-                "name" to FieldType.STRING("Charlie"),
-                "age" to FieldType.LONG(30)
-            )
-        )
-    )
-
-
-    if (localTable is LocalTable) {
-        convertTableToParquetOrc(localTable, "output")
-    }
-
-    println("Conversion to Parquet/ORC completed")
-
-
     val d = localTable.get(mapOf("age" to LONG(23)))
     if (d != null) {
         for (row in d) {
@@ -109,9 +78,11 @@ fun main() {
 //            println("TOMBSTONE2: ${row.tombstone} PAYLOAD2:${row.payload}")
 //        }
 //    }
+
+    convertTableToParquetOrc("output")
 }
 
-fun convertTableToParquetOrc(localTable: LocalTable, outputDir: String) {
+fun convertTableToParquetOrc(outputDir: String) {
     val spark = SparkSession.builder()
         .appName("CustomDB to Parquet/ORC")
         .master("local[*]")
@@ -119,18 +90,24 @@ fun convertTableToParquetOrc(localTable: LocalTable, outputDir: String) {
         .config("spark.driver.host", "127.0.0.1")
         .getOrCreate()
 
-    // Получаем все записи
-    val records = localTable.get(emptyMap()) ?: emptyList()
-    println("DEBUG: records loaded = ${records.size}")
-
-    if (records.isEmpty()) {
-        println("No records to convert.")
-        spark.stop()
-        return
+    val allRecords: List<RecordFormat.RecordLineLocal> = (1..1_000_000).map { i ->
+        RecordFormat.RecordLineLocal(
+            id = i.toLong(),
+            tombstone = false,
+            payload = Row(
+                mutableMapOf(
+                    "id" to FieldType.LONG(i.toLong()),
+                    "name" to FieldType.STRING("User$i"),
+                    "age" to FieldType.LONG((18 + i % 50).toLong())
+                )
+            )
+        )
     }
 
+    println("DEBUG: allRecords loaded = ${allRecords.size}")
+
     // Преобразуем в Spark Rows
-    val sparkRows = records.map { rec ->
+    val sparkRows = allRecords.map { rec ->
         RowFactory.create(
             rec.id as java.lang.Long, // RowFactory требует java.lang.Long
             rec.payload.values["name"]?.toString(),
@@ -138,7 +115,6 @@ fun convertTableToParquetOrc(localTable: LocalTable, outputDir: String) {
         )
     }
 
-    // Определяем схему
     val schema = StructType(
         arrayOf(
             StructField("id", DataTypes.LongType, false, org.apache.spark.sql.types.Metadata.empty()),
@@ -147,10 +123,7 @@ fun convertTableToParquetOrc(localTable: LocalTable, outputDir: String) {
         )
     )
 
-    // Создаем DataFrame
     val df = spark.createDataFrame(sparkRows, schema)
-
-    // Фильтрация: age > 20
     val filteredDF = df.filter("age > 20")
 
     // Сохраняем Parquet и ORC
