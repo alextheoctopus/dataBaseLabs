@@ -5,6 +5,8 @@
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-engine/1.12.1/fc105f3430d6392a4d033fe6f9d58eddd1a03594/junit-platform-engine-1.12.1.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-engine/1.12.1/ca2b7ff5842903db239d851da45cf926b94134c6/junit-platform-engine-1.12.1-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>

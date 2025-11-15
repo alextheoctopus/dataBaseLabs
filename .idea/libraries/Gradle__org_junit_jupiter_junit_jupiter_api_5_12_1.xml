@@ -5,6 +5,8 @@
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-api/5.12.1/9ed9e01546d4eb0840769b5d0ac7924531e98d7d/junit-jupiter-api-5.12.1.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-api/5.12.1/e6db7ccf02f4e2a30358a78383311fbc92b238c1/junit-jupiter-api-5.12.1-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>

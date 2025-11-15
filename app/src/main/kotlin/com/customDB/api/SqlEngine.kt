@@ -15,21 +15,40 @@ import net.sf.jsqlparser.expression.LongValue
 import net.sf.jsqlparser.expression.DoubleValue
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo
 import net.sf.jsqlparser.schema.Column
-
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
-class SqlEngine(private val engine: LocalStorageEngine) {
+/**
+ * ВАЖНО:
+ * - Локальная логика БД не менялась.
+ * - Добавлены «хуки» для репликации: публикация RepOp.* через PrimaryReplicator.
+ * - Шардирование решает внешний Router. Здесь просто выполняем команды на узле.
+ */
+class SqlEngine(
+    private val engine: LocalStorageEngine,
+    private val shardId: String = "s0",                     // id шарда для репликации
+    private val replicator: PrimaryReplicator? = null       // null на репликах; задан на лидере
+) {
+
+    private fun publish(vararg ops: RepOp) {
+        // на реплике replicator == null и публикации не будет
+        replicator?.let {
+            runBlocking {
+                it.publish(RepBatch(shardId, ops.toList()))
+            }
+        }
+    }
 
     fun execute(sql: String): Any? {
         val statement: Statement = CCJSqlParserUtil.parse(sql)
         return when (statement) {
             is CreateTable -> handleCreateTable(statement)
-            is Insert -> handleInsert(statement)
-            is Select -> handleSelect(statement)
-            is Update -> handleUpdate(statement)
-            is Delete -> handleDelete(statement)
-            is Drop -> handleDrop(statement)
-            is Alter -> handleAlter(statement)
+            is Insert      -> handleInsert(statement)
+            is Select      -> handleSelect(statement)
+            is Update      -> handleUpdate(statement)
+            is Delete      -> handleDelete(statement)
+            is Drop        -> handleDrop(statement)
+            is Alter       -> handleAlter(statement)
             else -> throw UnsupportedOperationException("Unsupported SQL: ${statement.javaClass.simpleName}")
         }
     }
@@ -51,6 +70,9 @@ class SqlEngine(private val engine: LocalStorageEngine) {
 
         val schema = TableSchema(name = tableName, fields = columns)
         engine.getOrCreateTable(schema)
+
+        // репликация
+        publish(RepOp.CreateTable(schema))
         return true
     }
 
@@ -72,14 +94,17 @@ class SqlEngine(private val engine: LocalStorageEngine) {
             val expr = expressions[index]
             val value = when (expr) {
                 is StringValue -> FieldType.STRING(expr.value)
-                is LongValue -> FieldType.LONG(expr.value)
+                is LongValue   -> FieldType.LONG(expr.value)
                 is DoubleValue -> FieldType.DOUBLE(expr.value)
-                else -> FieldType.STRING(expr.toString())
+                else           -> FieldType.STRING(expr.toString())
             }
             rowValues[col] = value
         }
 
         table.insert(Row(rowValues))
+
+        // репликация
+        publish(RepOp.Insert(tableName, Row(rowValues), null))
         return true
     }
 
@@ -96,8 +121,8 @@ class SqlEngine(private val engine: LocalStorageEngine) {
             val valueExpr = where.rightExpression
             val fieldValue = when (valueExpr) {
                 is StringValue -> FieldType.STRING(valueExpr.value)
-                is LongValue -> FieldType.LONG(valueExpr.value)
-                else -> FieldType.STRING(valueExpr.toString())
+                is LongValue   -> FieldType.LONG(valueExpr.value)
+                else           -> FieldType.STRING(valueExpr.toString())
             }
             filterFields[column] = fieldValue
         }
@@ -105,7 +130,6 @@ class SqlEngine(private val engine: LocalStorageEngine) {
         val result = table.get(filterFields)
         return result?.map { it.payload } ?: emptyList()
     }
-
 
     private fun handleUpdate(stmt: Update): Boolean {
         val tableName = stmt.table.name
@@ -117,9 +141,9 @@ class SqlEngine(private val engine: LocalStorageEngine) {
             val expr = stmt.expressions[i]
             newRowValues[col.columnName] = when (expr) {
                 is StringValue -> FieldType.STRING(expr.value)
-                is LongValue -> FieldType.LONG(expr.value)
+                is LongValue   -> FieldType.LONG(expr.value)
                 is DoubleValue -> FieldType.DOUBLE(expr.value)
-                else -> FieldType.STRING(expr.toString())
+                else           -> FieldType.STRING(expr.toString())
             }
         }
 
@@ -130,9 +154,9 @@ class SqlEngine(private val engine: LocalStorageEngine) {
             val key = (whereExpr.leftExpression as Column).columnName
             val value = when (val expr = whereExpr.rightExpression) {
                 is StringValue -> FieldType.STRING(expr.value)
-                is LongValue -> FieldType.LONG(expr.value)
+                is LongValue   -> FieldType.LONG(expr.value)
                 is DoubleValue -> FieldType.DOUBLE(expr.value)
-                else -> FieldType.STRING(expr.toString())
+                else           -> FieldType.STRING(expr.toString())
             }
             filterFields[key] = value
         }
@@ -144,9 +168,10 @@ class SqlEngine(private val engine: LocalStorageEngine) {
             for ((k, v) in newRowValues) {
                 updatedRow.values[k] = v
             }
-
-            // здесь обязательно вызываем upsert, чтобы изменения сохранились
             table.upsert(FieldType.LONG(rowLine.id), updatedRow)
+
+            // репликация апсёрта по каждой изменённой строке
+            publish(RepOp.Upsert(tableName, rowLine.id, updatedRow))
         }
 
         return true
@@ -160,22 +185,32 @@ class SqlEngine(private val engine: LocalStorageEngine) {
         val rawValue = (where.rightExpression)
         val value: FieldType = when (rawValue) {
             is StringValue -> FieldType.STRING(rawValue.value)
-            is LongValue -> FieldType.LONG(rawValue.value)
+            is LongValue   -> FieldType.LONG(rawValue.value)
             is DoubleValue -> FieldType.DOUBLE(rawValue.value)
-            else -> FieldType.STRING(rawValue.toString())
+            else           -> FieldType.STRING(rawValue.toString())
         }
-        return table.delete(mapOf(key to value))
-    }
 
+        val ok = table.delete(mapOf(key to value))
+
+        // репликация
+        if (ok) publish(RepOp.Delete(tableName, mapOf(key to value)))
+        return ok
+    }
 
     private fun handleDrop(stmt: Drop): Boolean {
         val tableName = stmt.name.name
         val file = File(engine.basePath, "$tableName.tbl")
         val meta = File(engine.basePath, "$tableName.meta")
-        return file.delete() or meta.delete()
+        val ok = file.delete() or meta.delete()
+
+        // репликация
+        if (ok) publish(RepOp.DropTable(tableName))
+        return ok
     }
 
     private fun handleAlter(stmt: Alter): Boolean {
+        // В учебной версии не поддерживаем; при необходимости
+        // можно транслировать в RepOp.DropTable/RepOp.CreateTable с новым schema
         println("ALTER TABLE ${stmt.table.name} — пока не реализовано")
         return false
     }
