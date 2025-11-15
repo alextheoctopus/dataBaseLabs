@@ -11,6 +11,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.*
 import org.apache.spark.sql.RowFactory
 import java.io.File
+import java.net.InetSocketAddress
 import kotlin.system.measureTimeMillis
 import kotlinx.serialization.json.Json
 
@@ -192,7 +193,7 @@ fun main(vararg raw: String) {
         else -> error("Unknown --role=$role (use leader|replica or --router)")
     }
 
-    convertTableToParquetOrc("output")
+//    convertTableToParquetOrc("output")
 }
 
 private fun convertTableToParquetOrc(outputDir: String) {
