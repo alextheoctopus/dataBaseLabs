@@ -192,7 +192,7 @@ fun main(vararg raw: String) {
         }
         else -> error("Unknown --role=$role (use leader|replica or --router)")
     }
-
+// MARK: - НЕ ЗАПУСТИТСЯ ЧЕРЕЗ IDE, НАДО ЗАПУСКАТЬ ЧЕРЕЗ ТЕРМИНАЛ КОМАНДОЙ ./gradlew run
 //    convertTableToParquetOrc("output")
 }
 
