@@ -13,11 +13,12 @@ class PrimaryReplicatorHttp(
 ): PrimaryReplicator {
 
     private val published = AtomicLong(0)
-
+//передача данных в реплику
     override suspend fun publish(batch: RepBatch) {
         if (replicas.isEmpty()) return
         val body = json.encodeToString(RepBatch.serializer(), batch).toByteArray()
-        var acks = 0
+        var acks = 0//счетчик сколько реплик подтвердили прием
+        //параллельная рассылка всем репликам
         replicas.parallelStream().forEach { r ->
             try {
                 val url = URL("http://${r.host}:${r.port}/repl/push")
@@ -31,6 +32,5 @@ class PrimaryReplicatorHttp(
             } catch (_: Throwable) {}
         }
         if (acks > 0) published.addAndGet(batch.ops.size.toLong())
-        // Для ЛР достаточно ack>=1; можно сделать флаг ackQuorum.
     }
 }

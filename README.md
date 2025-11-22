@@ -33,7 +33,7 @@ Router: 4 % 2 == 0 → шард s0 → сервер 10.0.0.1.
 
 | Роль | Сервер | Назначение |
 | --- | --- | --- |
-| leader (master) | 10.0.0.1 | принимает записи (INSERT/UPDATE/DELETE) |
+| master | 10.0.0.1 | принимает записи (INSERT/UPDATE/DELETE) |
 | replica1 | 10.0.0.3 | только чтение (SELECT) |
 | replica2 | 10.0.0.4 | только чтение (SELECT) |
 - Клиент (или Router) отправляет запрос:
@@ -43,7 +43,7 @@ Router: 4 % 2 == 0 → шард s0 → сервер 10.0.0.1.
     
     ```
 
-- Лидер применяет изменение и записывает его в **журнал (WAL)**.
+- Мастер применяет изменение и записывает его в **журнал (WAL)**.
 - Репликатор (наш `PrimaryReplicatorHttp`) передаёт **RepBatch** с этой операцией на все реплики.
 - Реплика получает `/repl/push`, применяет изменения через `ReplicaApplierHttp`.
 
@@ -59,7 +59,7 @@ Router: 4 % 2 == 0 → шард s0 → сервер 10.0.0.1.
 │   Shard s0    │                     │   Shard s1    │
 │   (user_id%2=0)│                    │  (user_id%2=1)│
 ├───────────────┤                     ├───────────────┤
-│ Leader:10.0.1 │◄───replication─────┤ Leader:10.0.2 │
+│ master:10.0.1 │◄───replication─────┤ master:10.0.2 │
 │ Replica:10.0.3│                     │ Replica:10.0.4│
 └───────────────┘                     └───────────────┘
 ```
@@ -68,11 +68,11 @@ Router: 4 % 2 == 0 → шард s0 → сервер 10.0.0.1.
 
 Main.kt - точка входа. Парсит аргументы (—role,—port,—shardId,—replicas,—router)
 
-В зависимости от роли: запускает Router или запускает узел бд (leader/replica)
+В зависимости от роли: запускает Router или запускает узел бд (master/replica)
 
 ---
 
-**leader шарда**
+**master шарда**
 
 LocalStorageEngine-Создает .meta, .tbl локальное хранилище файлов.
 
@@ -86,7 +86,7 @@ ReplicaApplierHttp.startHttp(replPort) - поднимает простой /repl
 
 ---
 
-**replica - получает изменения от лидера через HTTP POST /repl/push**
+**replica - получает изменения от Мастера через HTTP POST /repl/push**
 
 LocalStorageEngine - открывает локальные таблицы
 
@@ -96,7 +96,7 @@ SqlHttpServer.start(port, sqlEngine) - слушает /repl/push и /repl/heartb
 
 ---
 
-**router - принимает /execute и /query. По id решает какой шард нужен. Отправляет запрос на соответствующий лидер и реплику.**
+**router - принимает /execute и /query. По id решает какой шард нужен. Отправляет запрос на соответствующий Мастер и реплику.**
 
 ClusterState.load(cluster.json) - загружает карту всех шардов
 
@@ -122,9 +122,9 @@ SqlEngine.execute(sql): Парсит SQL через CCJSqlParserUtil.parse(sql);
 | Компонент | Что делает |
 | --- | --- |
 | **Клиент** | Отправляет HTTP `/execute` на Router |
-| **RouterHttpServer** | Определяет `shardId` по `id=1`, находит лидера `s0`, пересылает туда
+| **RouterHttpServer** | Определяет `shardId` по `id=1`, находит Мастера `s0`, пересылает туда
 *передавать id в строке |
-| **SqlHttpServer (leader s0)** | Принимает запрос, вызывает `SqlEngine.execute(sql)` |
+| **SqlHttpServer (master s0)** | Принимает запрос, вызывает `SqlEngine.execute(sql)` |
 | **SqlEngine** | Парсит SQL, вызывает `handleInsert()` |
 | **LocalStorageEngine + Table** | Пишет данные в `users.tbl` |
 | **SqlEngine.publish(RepOp.Insert)** | Формирует батч `RepBatch` |
@@ -133,13 +133,12 @@ SqlEngine.execute(sql): Парсит SQL через CCJSqlParserUtil.parse(sql);
 | **SELECT-запросы** могут идти уже на реплику (Router направляет их туда) |  |
 Запуск Router:
 ```gradle run --args="--router --routerPort=8080 --cluster=cluster/cluster.json --shardKey=id"```
-Запуск Leader1:
-```gradle clean run --args="--role=leader --shardId=s0 --port=8001 --replPort=9001 --replicas=127.0.0.1:9002 --basePath=src/LocalDB/s0"```
+Запуск master1:
+```gradle clean run --args="--role=master --shardId=s0 --port=8001 --replPort=9001 --replicas=127.0.0.1:9002 --basePath=src/LocalDB/s0"```
 Запуск Replica1:
 ```gradle run --args="--role=replica --shardId=s0 --port=8002 --replPort=9002 --basePath=src/LocalDB/s0_replica"```
-Лидер второго шарда:
-```gradle run --args="--role=leader --shardId=s1 --port=8101 --replPort=9101 --replicas=127.0.0.1:9102 --basePath=src/LocalDB/s1"```
-
+Мастер второго шарда:
+```gradle run --args="--role=master --shardId=s1 --port=8101 --replPort=9101 --replicas=127.0.0.1:9102 --basePath=src/LocalDB/s1"```
 Реплика второго шарда:
 ```gradle run --args="--role=replica --shardId=s1 --port=8102 --replPort=9102 --basePath=src/LocalDB/s1_replica"```
 Остановить процесс 
@@ -147,6 +146,9 @@ SqlEngine.execute(sql): Парсит SQL через CCJSqlParserUtil.parse(sql);
 ```taskkill /PID 14872 /F```
 
 Тест:
-```curl.exe -X POST http://localhost:8080/execute -d "CREATE TABLE users(id LONG, name STRING, city STRING, balance DOUBLE);"```
-```curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users VALUES (1,'Anna','Moscow',100);"```
+Создание на двух мастерах
+```curl.exe -X POST http://localhost:8001/execute -d "CREATE TABLE users(id LONG, name STRING, city STRING, balance DOUBLE);"```
+```curl.exe -X POST http://localhost:8101/execute -d "CREATE TABLE users(id LONG, name STRING, city STRING, balance DOUBLE);"```
+Тут уже роутер сам разберется куда записывать
+``` curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id, name, city,balance ) VALUES (1,'Anna','Moscow',100);"```
 ```curl.exe -X POST http://localhost:8080/query   -d "SELECT * FROM users WHERE id = 1;"```

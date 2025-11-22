@@ -24,50 +24,65 @@ private fun parseArgs(args: Array<String>): Map<String, String?> =
 private fun startFallbackServer(sql: SqlEngine, port: Int) {
     val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress(port), 0)
 
+    fun respond(ex: com.sun.net.httpserver.HttpExchange, code: Int, body: String, contentType: String = "application/json; charset=utf-8") {
+        ex.responseHeaders.add("Content-Type", contentType)
+        val bytes = body.toByteArray(Charsets.UTF_8)
+        ex.sendResponseHeaders(code, bytes.size.toLong())
+        ex.responseBody.use { it.write(bytes) }
+    }
+
+    fun ok(payload: Any?): String = when (payload) {
+        null -> """{"status":"OK"}"""
+        is Number, is Boolean -> payload.toString()
+        is String -> """{"status":"OK","detail":${payload.trim().let { "\"${it.replace("\\", "\\\\").replace("\"", "\\\"")}\"" }}}"""
+        is Iterable<*> -> payload.joinToString(prefix = "[", postfix = "]") { it?.toString()?.let { s -> "\"${s.replace("\\", "\\\\").replace("\"", "\\\"")}\"" } ?: "null" }
+        is Map<*, *> -> payload.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
+            "\"${k.toString().replace("\\", "\\\\").replace("\"", "\\\"")}\":${ok(v)}"
+        }
+        else -> "\"${payload.toString().replace("\\", "\\\\").replace("\"", "\\\"")}\""
+    }
+
+    fun err(message: String?): String = """{"error":${("\"" + (message ?: "Unexpected error")).replace("\\", "\\\\").replace("\"", "\\\"") + "\""}}"""
+
     server.createContext("/health") { ex ->
+        // простой текст, чтобы health-чекеры не спотыкались о JSON
         val body = "OK"
-        ex.sendResponseHeaders(200, body.toByteArray().size.toLong())
-        ex.responseBody.use { it.write(body.toByteArray()) }
+        ex.responseHeaders.add("Content-Type", "text/plain; charset=utf-8")
+        val bytes = body.toByteArray(Charsets.UTF_8)
+        ex.sendResponseHeaders(200, bytes.size.toLong())
+        ex.responseBody.use { it.write(bytes) }
     }
 
-    server.createContext("/execute") { ex ->
-        if (ex.requestMethod != "POST") { ex.sendResponseHeaders(405, -1); return@createContext }
-        val query = ex.requestBody.readAllBytes().decodeToString()
+    fun handleSql(ex: com.sun.net.httpserver.HttpExchange) {
+        val method = ex.requestMethod.uppercase()
+        if (method != "POST") {
+            respond(ex, 405, err("Method Not Allowed"))
+            return
+        }
+        val query = ex.requestBody.readAllBytes().toString(Charsets.UTF_8).trim()
+        if (query.isEmpty()) {
+            respond(ex, 400, err("Empty body"))
+            return
+        }
         try {
+            // лёгкое логирование запросов
+            println("[fallback:${ex.requestURI.path}] ${query.take(200)}")
             val res = sql.execute(query)
-            val body = (res?.toString() ?: "null")
-            ex.sendResponseHeaders(200, body.toByteArray().size.toLong())
-            ex.responseBody.use { it.write(body.toByteArray()) }
+            respond(ex, 200, ok(res))
         } catch (t: Throwable) {
-            val body = "ERROR: ${t.message}"
-            ex.sendResponseHeaders(500, body.toByteArray().size.toLong())
-            ex.responseBody.use { it.write(body.toByteArray()) }
+            respond(ex, 500, err(t.message))
         }
     }
 
-    server.createContext("/query") { ex ->
-        if (ex.requestMethod != "POST") { ex.sendResponseHeaders(405, -1); return@createContext }
-        val query = ex.requestBody.readAllBytes().decodeToString()
-        try {
-            val res = sql.execute(query)
-            val body = when (res) {
-                null -> "[]"
-                is List<*> -> res.joinToString(prefix = "[", postfix = "]") { it.toString() }
-                else -> res.toString()
-            }
-            ex.sendResponseHeaders(200, body.toByteArray().size.toLong())
-            ex.responseBody.use { it.write(body.toByteArray()) }
-        } catch (t: Throwable) {
-            val body = "ERROR: ${t.message}"
-            ex.sendResponseHeaders(500, body.toByteArray().size.toLong())
-            ex.responseBody.use { it.write(body.toByteArray()) }
-        }
-    }
+    server.createContext("/execute", ::handleSql)
+    server.createContext("/query",   ::handleSql)
 
+    // пул потоков; для нагрузки лучше фиксированный thread-pool
     server.executor = java.util.concurrent.Executors.newCachedThreadPool()
     server.start()
-    println("Fallback HTTP server started on :$port  (endpoints: /health, /execute, /query)")
+    println("Fallback HTTP server started on :$port (endpoints: /health, /execute, /query)")
 }
+
 
 private fun parseReplicas(csv: String?): List<NodeRef> =
     csv?.split(",")?.filter { it.isNotBlank() }?.map {
@@ -150,17 +165,27 @@ fun main(vararg raw: String) {
         val clusterFile = File(args["cluster"] ?: "cluster/cluster.json")
         val routerPort  = (args["routerPort"] ?: "8080").toInt()
         val shardKey    = args["shardKey"] ?: "id"
-
+        //Создание объектов
+/*Загружаем конфиг кластера (из clusterFile, обычно JSON): строится объект ClusterState с
+списком шардов (их id, master и реплики), разбиением хэш-слотов между шардами, методами вроде masterOf(shardId), bestReplicaOrmaster(shardId), shardBySlot(slot).*/
         val cluster = ClusterState.load(clusterFile)
+        /*Создаём локатор шарда. Он:
+парсит входящий SQL (JSqlParser),
+вытаскивает значение ключа шардирования (shardKey, по умолчанию id) из WHERE id = ...,
+хэширует это значение и по таблице слотов из cluster определяет какой шард должен обслужить запрос.*/
         val locator = ShardLocator(cluster, shardKey)
+/*Создаём HTTP-роутер. Он будет:
+принимать внешние запросы (/execute и /query), через locator вычислять целевой шард,
+через cluster выбирать лидера (для записи) или лучшую реплику/лидера (для чтения),
+форвардить запрос на соответствующий узел кластера.*/
         val router  = RouterHttpServer(cluster, locator)
         router.start(routerPort)
         println("Router started on :$routerPort, cluster=${clusterFile.absolutePath}, shardKey=$shardKey")
         return
     }
 
-    // режим узла (leader/replica)
-    val role    = args["role"] ?: "leader"           // "leader" | "replica"
+    // режим узла (master/replica)
+    val role    = args["role"] ?: "master"           // "master" | "replica"
     val shardId = args["shardId"] ?: "s0"
     val replPort = (args["replPort"] ?: "9001").toInt()
     val replicas = parseReplicas(args["replicas"])   // формат: host:replPort,host:replPort
@@ -168,7 +193,7 @@ fun main(vararg raw: String) {
     val storage = LocalStorageEngine(basePath)
 
     when (role.lowercase()) {
-        "leader" -> {
+        "master" -> {
             val replicator = PrimaryReplicatorHttp(shardId, replicas, Json { encodeDefaults = true })
             val sql = SqlEngine(storage, shardId, replicator)
             startSqlHttpServer(storage, sql, port)
@@ -176,7 +201,7 @@ fun main(vararg raw: String) {
             // лидеру свой HTTP для репликации не обязателен, но можно добавить /repl/heartbeat:
             val hb = ReplicaApplierHttp(storage) // используем только для heartbeat значения applied
             hb.startHttp(replPort)
-            println("Leader shard=$shardId started on :$port, repl :$replPort, replicas=$replicas")
+            println("master shard=$shardId started on :$port, repl :$replPort, replicas=$replicas")
         }
         "replica" -> {
             val sql = SqlEngine(storage, shardId, null) // на реплике публикации нет
@@ -186,7 +211,7 @@ fun main(vararg raw: String) {
             replSrv.startHttp(replPort)
             println("Replica shard=$shardId started on :$port, repl :$replPort")
         }
-        else -> error("Unknown --role=$role (use leader|replica or --router)")
+        else -> error("Unknown --role=$role (use master|replica or --router)")
     }
 }
 

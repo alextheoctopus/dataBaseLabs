@@ -10,7 +10,7 @@ data class ShardCfg(
     val id: String,
     val startSlot: Int,          // вместо IntRange
     val endSlot: Int,
-    val leader: NodeRef,
+    val master: NodeRef,
     val replicas: List<NodeRef> = emptyList()
 )
 

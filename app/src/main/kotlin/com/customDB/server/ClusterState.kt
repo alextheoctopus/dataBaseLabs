@@ -11,12 +11,12 @@ class ClusterState(val cfg: ClusterCfg) {
     fun shardBySlot(slot: Int): ShardCfg =
         cfg.shards.first { slot in it.startSlot..it.endSlot }
 
-    fun leaderOf(id: String) =
-        cfg.shards.first { it.id == id }.leader
+    fun masterOf(id: String) =
+        cfg.shards.first { it.id == id }.master
 
-    fun bestReplicaOrLeader(id: String) =
+    fun bestReplicaOrMaster(id: String) =
         cfg.shards.first { it.id == id }.replicas.firstOrNull()
-            ?: cfg.shards.first { it.id == id }.leader
+            ?: cfg.shards.first { it.id == id }.master
 
     companion object {
         fun load(file: File): ClusterState {
