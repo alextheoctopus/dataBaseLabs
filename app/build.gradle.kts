@@ -15,7 +15,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     implementation("com.github.jsqlparser:jsqlparser:4.8")
-
+    implementation("org.apache.spark:spark-core_2.12:3.5.0")
+    implementation("org.apache.spark:spark-sql_2.12:3.5.0")
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
@@ -35,4 +36,10 @@ java {
 
 application {
     mainClass = "com.customDB.MainKt"
+
+    applicationDefaultJvmArgs = listOf(
+        "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
+        "-Dspark.driver.bindAddress=127.0.0.1",
+        "-Dspark.driver.host=127.0.0.1"
+    )
 }

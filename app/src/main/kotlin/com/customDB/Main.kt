@@ -1,16 +1,19 @@
-
-
 package com.customDB
 
 import com.customDB.api.*
+import com.customDB.api.Row
 import com.customDB.node.repl.PrimaryReplicatorHttp
 import com.customDB.node.repl.ReplicaApplierHttp
 import com.customDB.server.ClusterState
 import com.customDB.server.RouterHttpServer
 import com.customDB.server.ShardLocator
-import kotlinx.serialization.json.Json
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.types.*
+import org.apache.spark.sql.RowFactory
 import java.io.File
 import java.net.InetSocketAddress
+import kotlin.system.measureTimeMillis
+import kotlinx.serialization.json.Json
 
 /** Примитивный парсер аргументов формата --key=value / --flag */
 private fun parseArgs(args: Array<String>): Map<String, String?> =
@@ -21,6 +24,7 @@ private fun parseArgs(args: Array<String>): Map<String, String?> =
             else s.substring(2) to "true"
         } else s to null
     }
+
 private fun startFallbackServer(sql: SqlEngine, port: Int) {
     val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress(port), 0)
 
@@ -213,5 +217,70 @@ fun main(vararg raw: String) {
         }
         else -> error("Unknown --role=$role (use master|replica or --router)")
     }
+// MARK: - НЕ ЗАПУСТИТСЯ ЧЕРЕЗ IDE, НАДО ЗАПУСКАТЬ ЧЕРЕЗ ТЕРМИНАЛ КОМАНДОЙ ./gradlew run
+//    convertTableToParquetOrc("output")
 }
 
+private fun convertTableToParquetOrc(outputDir: String) {
+    val spark = SparkSession.builder()
+        .appName("CustomDB to Parquet/ORC")
+        .master("local[*]")
+        .config("spark.driver.bindAddress", "127.0.0.1")
+        .config("spark.driver.host", "127.0.0.1")
+        .getOrCreate()
+
+    val allRecords: List<RecordFormat.RecordLineLocal> = (1..1_000_000).map { i ->
+        RecordFormat.RecordLineLocal(
+            id = i.toLong(),
+            tombstone = false,
+            payload = Row(
+                mutableMapOf(
+                    "id" to FieldType.LONG(i.toLong()),
+                    "name" to FieldType.STRING("User$i"),
+                    "age" to FieldType.LONG((18 + i % 50).toLong())
+                )
+            )
+        )
+    }
+
+    println("DEBUG: allRecords loaded = ${allRecords.size}")
+
+    // Преобразуем в Spark Rows
+    val sparkRows = allRecords.map { rec ->
+        RowFactory.create(
+            rec.id as java.lang.Long, // RowFactory требует java.lang.Long
+            rec.payload.values["name"]?.toString(),
+            (rec.payload.values["age"] as? FieldType.LONG)?.v as java.lang.Long?
+        )
+    }
+
+    val schema = StructType(
+        arrayOf(
+            StructField("id", DataTypes.LongType, false, org.apache.spark.sql.types.Metadata.empty()),
+            StructField("name", DataTypes.StringType, true, org.apache.spark.sql.types.Metadata.empty()),
+            StructField("age", DataTypes.LongType, true, Metadata.empty())
+        )
+    )
+
+    val df = spark.createDataFrame(sparkRows, schema)
+    val filteredDF = df.filter("age > 20")
+
+    // Сохраняем Parquet и ORC
+    val parquetDir = "$outputDir/parquet"
+    val orcDir = "$outputDir/orc"
+    filteredDF.write().mode("overwrite").parquet(parquetDir)
+    filteredDF.write().mode("overwrite").orc(orcDir)
+
+    // Замер времени чтения
+    val parquetReadTime = measureTimeMillis { spark.read().parquet(parquetDir).show() }
+    val orcReadTime = measureTimeMillis { spark.read().orc(orcDir).show() }
+
+    // Размер файлов
+    val parquetSize = File(parquetDir).walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
+    val orcSize = File(orcDir).walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
+
+    println("Parquet size = $parquetSize bytes, read time = $parquetReadTime ms")
+    println("ORC size = $orcSize bytes, read time = $orcReadTime ms")
+
+    spark.stop()
+}

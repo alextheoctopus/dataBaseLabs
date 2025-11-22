@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.ning:compress-lzf:1.1.2" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.ning" artifactId="compress-lzf" version="1.1.2" baseVersion="1.1.2" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.ning/compress-lzf/1.1.2/d09d33ffa7bc1d987db92e5ebec926ff92b7cbdf/compress-lzf-1.1.2.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

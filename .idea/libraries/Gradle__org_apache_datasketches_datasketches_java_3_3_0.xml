@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.datasketches:datasketches-java:3.3.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.datasketches" artifactId="datasketches-java" version="3.3.0" baseVersion="3.3.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.datasketches/datasketches-java/3.3.0/fcf28150084f55866315283d9f25e500a05f6a20/datasketches-java-3.3.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

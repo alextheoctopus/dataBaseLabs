@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.parquet:parquet-hadoop:1.13.1" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.parquet" artifactId="parquet-hadoop" version="1.13.1" baseVersion="1.13.1" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.parquet/parquet-hadoop/1.13.1/6b9a84875b7576d64cf4890c69c2ed1c7557b950/parquet-hadoop-1.13.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

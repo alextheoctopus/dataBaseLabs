@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.twitter:chill_2.12:0.10.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.twitter" artifactId="chill_2.12" version="0.10.0" baseVersion="0.10.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.twitter/chill_2.12/0.10.0/b208321208c0b3232a305fccd59df3d6a1f1eecd/chill_2.12-0.10.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
