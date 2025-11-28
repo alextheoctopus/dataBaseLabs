@@ -21,6 +21,7 @@ class SqlHttpServer(
         val s = HttpServer.create(InetSocketAddress(port), 0)
         s.createContext("/health", JsonHandler { _ -> mapOf("status" to "ok") })
         s.createContext("/query", QueryHandler(sql))
+        s.createContext("/execute", QueryHandler(sql))
         s.executor = null
         s.start()
         this.server = s

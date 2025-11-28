@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicLong
 
 class PrimaryReplicatorHttp(
     private val shardId: String,
-    private val replicas: List<NodeRef>,
     private val json: Json = Json { encodeDefaults = true }
 ): PrimaryReplicator {
 

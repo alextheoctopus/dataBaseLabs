@@ -6,8 +6,8 @@
       "id": "s0",
       "startSlot": 0,
       "endSlot": 511,
-      "master":   { "host": "127.0.0.1", "port": 8001 },
-      "replicas": [{ "host": "127.0.0.1", "port": 8009 }]
+      "master":   { "host": "127.0.0.1", "port": 8011},
+      "replicas": [{ "host": "127.0.0.1", "port": 8002 }]
     },
     {
       "id": "s1",
@@ -16,5 +16,6 @@
       "master":   { "host": "127.0.0.1", "port": 8101 },
       "replicas": [{ "host": "127.0.0.1", "port": 8102 }]
     }
+
   ]
 }

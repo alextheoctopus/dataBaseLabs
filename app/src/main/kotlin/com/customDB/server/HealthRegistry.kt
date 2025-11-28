@@ -1,6 +1,7 @@
-//Реестр «здоровья» нод + минутный опрос
+// app/src/main/kotlin/com/customDB/server/HealthRegistry.kt
 package com.customDB.server
 
+import com.customDB.api.ClusterCfg
 import com.customDB.api.NodeRef
 import java.net.HttpURLConnection
 import java.net.URL
@@ -10,50 +11,99 @@ import java.util.concurrent.TimeUnit
 
 data class NodeHealth(val lastOkMillis: Long, val lastCode: Int)
 
+/** Слушатель изменений кластера + фоновый health-пинг. */
 object HealthRegistry : ClusterListener {
-    private val health = ConcurrentHashMap<NodeRef, NodeHealth>()
-    private const val TIMEOUT_MS = 1500
-    private const val DOWN_THRESHOLD_MS = 90_000 // считаем «упала», если не ок >90с
 
-    override fun onClusterChanged(state: ClusterState) {
-        //сам возьмет свежие ноды из ClusterBus.current()
+    private val health = ConcurrentHashMap<Pair<String, Int>, NodeHealth>()
+    private val scheduler = Executors.newSingleThreadScheduledExecutor()
+    private var counterIndex = 0
+
+    /** Старт фонового опроса. */
+    fun startPoll(intervalSeconds: Long = 60) {
+        scheduler.scheduleAtFixedRate({ pollAll() }, 0, intervalSeconds, TimeUnit.SECONDS)
     }
 
-    fun startPolling(periodSec: Long = 60) {
-        val pool = Executors.newSingleThreadScheduledExecutor()
-        pool.scheduleAtFixedRate({
-            val now = System.currentTimeMillis()
-            val seen = mutableSetOf<NodeRef>()
-            val st = ClusterBus.current()
-            st.cfg.shards.forEach { sh ->
-                val nodes = buildList {
-                    add(sh.master)
-                    addAll(sh.replicas)
-                }
-                nodes.forEach { n ->
-                    seen += n
-                    val ok = ping(n)
-                    if (ok != null) health[n] = ok.copy(lastOkMillis = if (ok.lastCode in 200..299) now else (health[n]?.lastOkMillis ?: 0L))
-                }
+    fun stopPoll() = scheduler.shutdownNow()
+
+    /** Разовый пинг SQL-узла из роутера (обновляет кэш). */
+    fun pingNow(n: NodeRef, path: String = "/health", timeoutMs: Int = 1500): Boolean {
+        val code = httpGet(n.host, n.port, path, timeoutMs)
+        val key = n.host to n.port
+        if (code in 200..299) {
+            health[key] = NodeHealth(System.currentTimeMillis(), code)
+        } else {
+            val old = health[key] ?: NodeHealth(0L, -1)
+            health[key] = old.copy(lastCode = code)
+        }
+        return code in 200..299
+    }
+
+    /** Мягкая проверка «живости» по последнему успешному пингу. */
+    fun isAlive(n: NodeRef, staleMs: Long = 90_000): Boolean {
+        val nh = health[n.host to n.port] ?: return false
+        return System.currentTimeMillis() - nh.lastOkMillis < staleMs
+    }
+
+    /** Реакция на обновление cluster.json — печатаем сводку SQL/REPL. */
+    override fun invoke(prev: ClusterCfg?, cur: ClusterCfg) {
+        // SQL-порты
+        val sqlChecks = buildList {
+            cur.shards.forEach { sh ->
+                add(sh.master.host to sh.master.port)
+                sh.replicas.forEach { add(it.host to it.port) }
             }
-            // зачистка удалённых нод
-            health.keys.retainAll(seen)
-        }, 0, periodSec, TimeUnit.SECONDS)
-        ClusterBus.subscribe(this)
+        }.map { (h, p) -> "SQL  $h:$p = ${httpGet(h, p, "/health")}" }
+
+        // REPL-порты (sql+1000) -> /repl/heartbeat
+        val replChecks = buildList {
+            cur.shards.forEach { sh ->
+                // при желании можно добавить и мастерский repl-порт: (sh.master.port + 1000)
+                sh.replicas.forEach { add(it.host to (it.port + 1000)) }
+            }
+        }.map { (h, p) -> "REPL $h:$p = ${httpGet(h, p, "/repl/heartbeat")}" }
+
+        println("[HEALTH] summary:")
+        (sqlChecks + replChecks).forEach { println("[HEALTH] $it") }
     }
 
-    private fun ping(n: NodeRef): NodeHealth? {
-        return try {
-            val url = URL("http://${n.host}:${n.port}/health")
-            val c = (url.openConnection() as HttpURLConnection).apply { connectTimeout = TIMEOUT_MS; readTimeout = TIMEOUT_MS }
-            c.inputStream.use { _ -> } // достаточно, что ответили
-            NodeHealth(System.currentTimeMillis(), c.responseCode)
-        } catch (_: Throwable) { NodeHealth(health[n]?.lastOkMillis ?: 0L, 0) }
+    /** Фоновая проверка всех SQL-узлов; REPL — только логируем. */
+    private fun pollAll() {
+        val cfg = ClusterBus.current().cfg
+        counterIndex++;
+        // SQL
+        cfg.shards.flatMap { listOf(it.master) + it.replicas }.forEach { node ->
+            val code = httpGet(node.host, node.port, "/health", 1000)
+            val key = node.host to node.port
+            if (code in 200..299) {
+                health[key] = NodeHealth(System.currentTimeMillis(), code)
+            } else {
+                val old = health[key] ?: NodeHealth(0L, -1)
+                health[key] = old.copy(lastCode = code)
+            }
+            println("[HEALTH] summary ${counterIndex}: ${node.port} answer is ${health[key]?.lastCode}")
+        }
+        // REPL (лог)
+        cfg.shards.forEach { sh ->
+            sh.replicas.forEach { r ->
+                val rp = r.port + 1000
+                val code = httpGet(r.host, rp, "/repl/heartbeat", 1000)
+                println("[HEALTH] repl   : $rp answer is $code")
+            }
+        }
     }
 
-    fun isAlive(n: NodeRef): Boolean {
-        val h = health[n] ?: return false
-        val age = System.currentTimeMillis() - h.lastOkMillis
-        return h.lastOkMillis > 0 && age < DOWN_THRESHOLD_MS
-    }
+    /** Неблокирующий GET с таймаутами, возвращает HTTP-код или -1. */
+    private fun httpGet(host: String, port: Int, path: String, timeoutMs: Int = 1500): Int =
+        try {
+            val url = URL("http://$host:$port$path")
+            (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
+            }.let { conn ->
+                conn.inputStream.use { /* drain */ }
+                conn.responseCode
+            }
+        } catch (_: Throwable) {
+            -1
+        }
 }

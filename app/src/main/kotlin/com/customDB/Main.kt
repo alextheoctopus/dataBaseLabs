@@ -5,68 +5,68 @@ import com.customDB.api.NodeRef
 import com.customDB.api.SqlEngine
 import com.customDB.node.repl.ReplicationHttpServer
 import com.customDB.node.repl.PrimaryReplicatorHttp
-import com.customDB.server.ClusterBus
-import com.customDB.server.HealthRegistry
-import com.customDB.server.RouterHttpServer
+import com.customDB.server.*
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 
-fun main() {
-    val clusterFile = File("cluster/cluster.json")
-    require(clusterFile.exists()) { "cluster/cluster.json not found" }
-
-    // 1) общий кластер + health
-    ClusterBus.initAndWatch(clusterFile)
-    HealthRegistry.startPolling(periodSec = 60)
-
-    val st = ClusterBus.current()
-
-    // 2) поднимаем все узлы по кластеру
-    st.cfg.shards.forEach { shard ->
-        val shardId = shard.id
-
-        // ---- master
-        run {
-            val sqlPort = shard.master.port
-            val replPort = sqlPort + 1000
-            val dataDir = Paths.get("src", "LocalDB", shardId).toFile().apply { mkdirs() }
-            val engine = LocalStorageEngine(dataDir)
-
-            val replTargets: List<NodeRef> =
-                shard.replicas.map { NodeRef(it.host, it.port + 1000) }
-
-            val replicator = PrimaryReplicatorHttp(shardId, replTargets)
-            val sql = SqlEngine(engine, shardId, replicator)
-
-            SqlHttp.start(sqlPort, engine, sql)
-            ReplicationHttpServer(engine).start(replPort)
-
-            println("MASTER[$shardId] sql=:$sqlPort repl=:$replPort → replicas(repl)=${replTargets.joinToString { "${it.host}:${it.port}" }}")
-        }
-
-        // ---- replicas
-        shard.replicas.forEach { r ->
-            val sqlPort = r.port
-            val replPort = sqlPort + 1000
-            val dataDir = Paths.get("src", "LocalDB", "${shardId}_replica_${sqlPort}").toFile().apply { mkdirs() }
-            val engine = LocalStorageEngine(dataDir)
-            val sql = SqlEngine(engine, shardId, null)
-
-            SqlHttp.start(sqlPort, engine, sql)
-            ReplicationHttpServer(engine).start(replPort)
-
-            println("REPLICA[$shardId] sql=:$sqlPort repl=:$replPort")
-        }
+private fun resolveClusterFile(): File {
+    // 1) явный путь через JVM аргумент: -Dcluster.file=...
+    System.getProperty("cluster.file")?.let { p ->
+        val f = File(p)
+        if (f.isFile) return f
     }
-
-    // 3) роутер
-    RouterHttpServer().start(8080)
+    // 2) набор типичных путей относительно корня проекта и модуля app
+    val candidates = listOf(
+        Paths.get("app", "cluster", "cluster.json"),
+        Paths.get("cluster", "cluster.json"),
+        Paths.get("app\\cluster\\cluster.json"),
+        Paths.get("src", "main", "resources", "cluster.json") // на всякий
+    )
+    val found: Path? = candidates.firstOrNull { Files.isRegularFile(it) }
+    if (found != null) {
+        val f = found.toFile()
+        println("[Main] using cluster file: ${f.absolutePath}")
+        return f
+    }
+    error(
+        "cluster.json not found. Checked:\n" +
+                candidates.joinToString("\n") { " - ${it.toAbsolutePath()}" } +
+                "\nOr run with -Dcluster.file=C:/path/to/cluster.json"
+    )
 }
 
-private object SqlHttp {
-    fun start(port: Int, engine: LocalStorageEngine, sql: SqlEngine) {
-        // твой SqlHttpServer уже есть; просто запускаем
-        val s = com.customDB.server.SqlHttpServer(engine, sql)
-        s.start(port)
+//TODO:
+//дублирую данные в аргументах , могу неправильно поднять мастера и реплику,
+//вынести кластерстейт чтобы о нем все знали и все были на него подписаны,
+//если я захотела добавить реплику оно все подхватывалось
+//роутеру еще нужно знать что все ноды живы, организовать разговор между роутером и нодами,
+//сделать общение раз в минуту(вынести параметр частоты опроса).
+
+fun main() {
+    val clusterFile = resolveClusterFile()
+
+    // 1) стартуем watcher
+    ClusterBus.initAndWatch(
+        clusterFile = clusterFile,
+        onChange = HealthRegistry
+    )
+    //Проверка нод каждую минуту
+    HealthRegistry.startPoll(60)
+    // 2) оркестратор поднимает всё из текущего конфига
+    val orchestrator = NodeOrchestrator()
+    orchestrator.startAll(ClusterBus.current().cfg)
+
+    // 3) подписываемся на изменения
+    ClusterBus.addListener { prev, cur ->
+        orchestrator.applyDiff(prev, cur)
     }
+
+    // 4) роутер
+    val locator = ShardLocator() // если он использует только sql → id → slot, ему не нужен ClusterState в конструкторе
+    RouterHttpServer(locator).start(8080)
+
+    println("Router listening on :8080")
+    Thread.currentThread().join()
 }

@@ -1,13 +1,13 @@
 package com.customDB.server
 
 import com.customDB.api.ClusterCfg
+import com.customDB.api.NodeRef
 import com.customDB.api.ShardCfg
 import kotlinx.serialization.json.Json
 import java.io.File
 
 class ClusterState(val cfg: ClusterCfg) {
     val hashSlots = cfg.hashSlots
-
     fun shardBySlot(slot: Int): ShardCfg =
         cfg.shards.first { slot in it.startSlot..it.endSlot }
 

@@ -13,7 +13,6 @@ import net.sf.jsqlparser.statement.select.Select
 import net.sf.jsqlparser.statement.update.Update
 
 class ShardLocator(
-    private val cluster: ClusterState,
     private val shardKey: String = "id"
 ) {
     /** WHERE id = ? (или ? = id) */
@@ -107,7 +106,8 @@ class ShardLocator(
             else -> null
         }
         val h = (key ?: 0L).hashCode()//hashCode(id)%1024
-        val slot = Math.floorMod(h, cluster.hashSlots)
+    val cluster = ClusterBus.current()
+    val slot = Math.floorMod(h, cluster.hashSlots)
         val shardId = cluster.shardBySlot(slot).id
         return slot to shardId
     }

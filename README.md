@@ -131,24 +131,26 @@ SqlEngine.execute(sql): Парсит SQL через CCJSqlParserUtil.parse(sql);
 | **PrimaryReplicatorHttp** | POST `/repl/push` на реплику |
 | **ReplicaApplierHttp (replica s0)** | Применяет вставку локально |
 | **SELECT-запросы** могут идти уже на реплику (Router направляет их туда) |  |
-Запуск Router:
-```gradle run --args="--router --routerPort=8080 --cluster=cluster/cluster.json --shardKey=id"```
-Запуск master1:
-```gradle clean run --args="--role=master --shardId=s0 --port=8001 --replPort=9001 --replicas=127.0.0.1:9002 --basePath=src/LocalDB/s0"```
-Запуск Replica1:
-```gradle run --args="--role=replica --shardId=s0 --port=8002 --replPort=9002 --basePath=src/LocalDB/s0_replica"```
-Мастер второго шарда:
-```gradle run --args="--role=master --shardId=s1 --port=8101 --replPort=9101 --replicas=127.0.0.1:9102 --basePath=src/LocalDB/s1"```
-Реплика второго шарда:
-```gradle run --args="--role=replica --shardId=s1 --port=8102 --replPort=9102 --basePath=src/LocalDB/s1_replica"```
+Запуск 
+```
+gradle run
+```
 Остановить процесс 
 ```netstat -ano | findstr :8080```
 ```taskkill /PID 14872 /F```
 
 Тест:
-Создание на двух мастерах
-```curl.exe -X POST http://localhost:8001/execute -d "CREATE TABLE users(id LONG, name STRING, city STRING, balance DOUBLE);"```
-```curl.exe -X POST http://localhost:8101/execute -d "CREATE TABLE users(id LONG, name STRING, city STRING, balance DOUBLE);"```
-Тут уже роутер сам разберется куда записывать
-``` curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id, name, city,balance ) VALUES (1,'Anna','Moscow',100);"```
-```curl.exe -X POST http://localhost:8080/query   -d "SELECT * FROM users WHERE id = 1;"```
+# DDL фан-аут через роутер
+```curl.exe -X POST http://localhost:8080/execute -d "CREATE TABLE users (id INT, name STRING, city STRING, balance LONG);"```
+
+# DML в разные шарды
+```curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (1,'Anna','A',100);"```
+```curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (700,'Ivan','B',5000);"```
+
+# SELECT (чтения должны идти в живые реплики)
+```curl.exe -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=1;"```
+```curl.exe -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=700;"```
+
+# Хартбиты репликации (порт = sql+1000)
+```curl.exe http://localhost:9002/repl/heartbeat```
+```curl.exe http://localhost:9102/repl/heartbeat```
