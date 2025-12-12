@@ -141,16 +141,16 @@ gradle run
 
 Тест:
 # DDL фан-аут через роутер
-```curl.exe -X POST http://localhost:8080/execute -d "CREATE TABLE users (id INT, name STRING, city STRING, balance LONG);"```
+```curl -X POST http://localhost:8080/execute -d "CREATE TABLE users (id INT, name STRING, city STRING, balance LONG);"```
 
 # DML в разные шарды
-```curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (1,'Anna','A',100);"```
-```curl.exe -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (700,'Ivan','B',5000);"```
+```curl -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (1,'Anna','A',100);"```
+```curl -X POST http://localhost:8080/execute -d "INSERT INTO users (id,name,city,balance) VALUES (700,'Ivan','B',5000);"```
 
 # SELECT (чтения должны идти в живые реплики)
-```curl.exe -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=1;"```
-```curl.exe -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=700;"```
+```curl -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=1;"```
+```curl -X POST http://localhost:8080/query -d "SELECT * FROM users WHERE id=700;"```
 
 # Хартбиты репликации (порт = sql+1000)
-```curl.exe http://localhost:9002/repl/heartbeat```
-```curl.exe http://localhost:9102/repl/heartbeat```
+```curl http://localhost:9002/repl/heartbeat```
+```curl http://localhost:9102/repl/heartbeat```

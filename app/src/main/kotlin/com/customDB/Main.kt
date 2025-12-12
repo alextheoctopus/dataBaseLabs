@@ -70,3 +70,25 @@ fun main() {
     println("Router listening on :8080")
     Thread.currentThread().join()
 }
+
+
+// Простой тест производительности (закомментирован)
+//fun main() {
+//    val engine = LocalStorageEngine()
+//    val sql = SqlEngine(engine)
+//
+//    sql.execute("CREATE TABLE users (id INT, name STRING, age INT)")
+//
+//    val n = 10000
+//    val startInsert = System.nanoTime()
+//    for (i in 1..n) {
+//        sql.execute("INSERT INTO users (id, name, age) VALUES ($i, 'user$i', ${i % 50})")
+//    }
+//    val insertMs = (System.nanoTime() - startInsert) / 1_000_000
+//
+//    val startSelect = System.nanoTime()
+//    sql.execute("SELECT * FROM users WHERE id = ${n / 2}")
+//    val selectMs = (System.nanoTime() - startSelect) / 1_000_000
+//    println("customDB: inserted $n rows in ${insertMs} ms")
+//    println("customDB: point select in ${selectMs} ms")
+//}

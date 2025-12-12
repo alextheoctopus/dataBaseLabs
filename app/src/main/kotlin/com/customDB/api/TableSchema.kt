@@ -6,9 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class TableSchema(
     val name: String,
-    /** Порядок важен (сохраняем как список колонок). */
     val fields: List<Column>,
-    /** Разрешать ли отсутствующие поля с default-значениями. */
     val allowDefaults: Boolean = false,
 ) {
     @Serializable

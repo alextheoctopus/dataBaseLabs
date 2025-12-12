@@ -103,12 +103,10 @@ class LocalTable(
         val foundData = mutableListOf<RecordFormat.RecordLineLocal>()
 
         for (rec in recordJson) {
-            if (!rec.tombstone) {//если запись мертвая, то пропустить
-                // проверяем, что все поля совпадают и живые
+            if (!rec.tombstone) {
                 val matches = fields.all { (key, value) ->
                     val storedValue = rec.payload.values[key]
                     val match = storedValue?.toString() == value.toString()
-                    println("DEBUG: compare key=$key stored=$storedValue vs $value => $match")
                     match
                 }
 
