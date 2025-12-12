@@ -1,6 +1,6 @@
 package com.customDB.api
 
-import com.customDB.compression.GzipFormat
+import com.customDB.compression.CustomCompressionFormat
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -34,7 +34,8 @@ class RecordFormat(private val file: File, private val enableCompression: Boolea
         val (finalPayload, isCompressed) = if (enableCompression && payload.length > 50) {
             try {
                 val payloadBytes = payload.toByteArray(Charsets.UTF_8)
-                val compressed = GzipFormat.compress(payloadBytes)
+                // Используем наш собственный LZ77 кодер
+                val compressed = CustomCompressionFormat.compress(payloadBytes)
                 val base64Compressed = Base64.getEncoder().encodeToString(compressed)
                 base64Compressed to true
             } catch (e: Exception) {
@@ -67,7 +68,8 @@ class RecordFormat(private val file: File, private val enableCompression: Boolea
                 val decompressedPayload = if (record.compressed) {
                     try {
                         val compressedBytes = Base64.getDecoder().decode(record.payload)
-                        val decompressed = GzipFormat.decompress(compressedBytes)
+                        // Используем наш собственный LZ77 декодер
+                        val decompressed = CustomCompressionFormat.decompress(compressedBytes)
                         String(decompressed, Charsets.UTF_8)
                     } catch (e: Exception) {
                         record.payload
