@@ -1,59 +1,75 @@
 package com.customDB.compression
 
+/**
+ * Утилита для чтения битов из потока байтов
+ */
 class BitReader(private val data: ByteArray) {
     private var byteIndex = 0
     private var bitIndex = 0
     
+    /**
+     * Читает один бит
+     */
     fun readBit(): Int {
         if (byteIndex >= data.size) {
-            throw IndexOutOfBoundsException("End of data")
+            throw IllegalArgumentException("End of data")
         }
-        
-        val bit = (data[byteIndex].toInt() shr (7 - bitIndex)) and 1
+        val bit = (data[byteIndex].toInt() shr bitIndex) and 1
         bitIndex++
-        
         if (bitIndex == 8) {
             bitIndex = 0
             byteIndex++
         }
-        
         return bit
     }
     
-    fun readBits(numBits: Int): Int {
+    /**
+     * Читает несколько бит как little-endian (LSB first)
+     */
+    fun readBits(count: Int): Int {
         var value = 0
-        for (i in 0 until numBits) {
-            value = (value shl 1) or readBit()
+        for (i in 0 until count) {
+            val bit = readBit()
+            value = value or (bit shl i)
         }
         return value
     }
     
+    /**
+     * Читает байт
+     */
     fun readByte(): Int {
+        return readBits(8)
+    }
+    
+    /**
+     * Читает 16-битное значение как little-endian
+     */
+    fun readShort(): Int {
+        return readBits(16)
+    }
+    
+    /**
+     * Пропускает биты до границы байта
+     */
+    fun alignToByte() {
         if (bitIndex > 0) {
             bitIndex = 0
             byteIndex++
         }
-        if (byteIndex >= data.size) {
-            throw IndexOutOfBoundsException("End of data")
-        }
-        return data[byteIndex++].toInt() and 0xFF
     }
     
-    fun readBytes(length: Int): ByteArray {
-        if (bitIndex > 0) {
-            bitIndex = 0
-            byteIndex++
-        }
-        if (byteIndex + length > data.size) {
-            throw IndexOutOfBoundsException("Not enough data")
-        }
-        val result = data.sliceArray(byteIndex until byteIndex + length)
-        byteIndex += length
-        return result
+    /**
+     * Проверяет, достигнут ли конец данных
+     */
+    fun isEnd(): Boolean {
+        return byteIndex >= data.size
     }
     
-    fun hasMore(): Boolean {
-        return byteIndex < data.size || (byteIndex == data.size && bitIndex > 0)
+    /**
+     * Возвращает текущую позицию в байтах
+     */
+    fun getPosition(): Int {
+        return byteIndex
     }
 }
-

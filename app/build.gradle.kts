@@ -36,3 +36,10 @@ java {
 application {
     mainClass = "com.customDB.MainKt"
 }
+
+// Задача для запуска CreateGzipFile
+tasks.register<JavaExec>("createGzip") {
+    group = "application"
+    mainClass = "com.customDB.CreateGzipFileKt"
+    classpath = sourceSets["main"].runtimeClasspath
+}
