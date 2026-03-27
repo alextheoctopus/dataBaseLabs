@@ -1,0 +1,21 @@
+{
+  "hashSlots": 1024,
+  "vnodesPerShard": 64,
+  "shards": [
+    {
+      "id": "s0",
+      "startSlot": 0,
+      "endSlot": 511,
+      "master":   { "host": "127.0.0.1", "port": 8011},
+      "replicas": [{ "host": "127.0.0.1", "port": 8002 }]
+    },
+    {
+      "id": "s1",
+      "startSlot": 512,
+      "endSlot": 1023,
+      "master":   { "host": "127.0.0.1", "port": 8101 },
+      "replicas": [{ "host": "127.0.0.1", "port": 8102 }]
+    }
+
+  ]
+}
